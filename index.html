@@ -4,7 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#131c2e">
+  
+  
   <title>Control de Nivelación - Asentamiento de Torres</title>
   <!-- SheetJS para Excel y jsPDF para reportes PDF -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -218,6 +222,21 @@
     <!-- VISTA 1: LISTADO DE PROYECTOS -->
     <div id="view-projects" class="view active">
       
+      
+      <!-- BANNER DE INSTALACIÓN RÁPIDA -->
+      <div id="pwa-install-banner" class="card" style="display:none; border-color:var(--accent); background:#1e293b;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <img src="icon-192.png" alt="TopoControl" style="width:40px; height:40px; border-radius:8px;">
+            <div>
+              <b style="color:var(--accent); font-size:0.95rem;">Instalar TopoControl en el Celular</b>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin:0;">Úsala sin conexión en campo como una app nativa.</p>
+            </div>
+          </div>
+          <button class="btn btn-success" id="btn-install-pwa">📲 Instalar App</button>
+        </div>
+      </div>
+
       <!-- TARJETA COPIA DE SEGURIDAD (JSON) -->
       <div class="card" style="display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; border-color:#334155;">
         <div>
@@ -1313,12 +1332,42 @@
     }
 
     
+    
+    // MANEJO DE INSTALACIÓN PWA
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.style.display = 'block';
+    });
+
+    const installBtn = document.getElementById('btn-install-pwa');
+    if (installBtn) {
+      installBtn.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          const banner = document.getElementById('pwa-install-banner');
+          if (banner) banner.style.display = 'none';
+        }
+        deferredPrompt = null;
+      });
+    }
+
+    window.addEventListener('appinstalled', () => {
+      const banner = document.getElementById('pwa-install-banner');
+      if (banner) banner.style.display = 'none';
+      deferredPrompt = null;
+    });
+
     // REGISTRO DE SERVICE WORKER PARA INSTALACIÓN PWA
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js')
-          .then(() => console.log('Service Worker Registrado'))
-          .catch((err) => console.log('Error SW:', err));
+          .then((reg) => console.log('Service Worker Registrado:', reg.scope))
+          .catch((err) => console.warn('Error registrando SW:', err));
       });
     }
 
