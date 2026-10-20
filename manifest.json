@@ -1,6 +1,6 @@
 {
-  "name": "TopoControl - Nivelación de Torres",
-  "short_name": "TopoControl",
+  "name": "Nivelacion CR",
+  "short_name": "Nivelacion CR",
   "description": "Control de asentamiento y nivelación geométrica de precisión",
   "id": "./",
   "start_url": "./",

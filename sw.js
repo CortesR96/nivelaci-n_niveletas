@@ -1,4 +1,4 @@
-const CACHE_NAME = 'topocontrol-v2';
+const CACHE_NAME = 'nivelacion-cr-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -36,7 +36,6 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Solo interceptar peticiones GET
   if (event.request.method !== 'GET') return;
 
   event.respondWith(
@@ -54,7 +53,6 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Si estamos offline y pide navegar, servir index.html
           if (event.request.mode === 'navigate') {
             return caches.match('./index.html') || caches.match('./');
           }

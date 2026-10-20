@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#131c2e">
   
   
-  <title>Control de Nivelación - Asentamiento de Torres</title>
+  <title>Nivelacion CR - Control de Asentamiento</title>
   <!-- SheetJS para Excel y jsPDF para reportes PDF -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -211,7 +211,7 @@
 
   <header>
     <div>
-      <h1 id="header-title">TOPOCONTROL</h1>
+      <h1 id="header-title">NIVELACION CR</h1>
       <small id="header-sub" style="color:var(--text-muted)">Nivelación de Precisión</small>
     </div>
     <div class="status-badge" id="inst-badge">A.inst: --</div>
@@ -227,9 +227,9 @@
       <div id="pwa-install-banner" class="card" style="display:none; border-color:var(--accent); background:#1e293b;">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
           <div style="display:flex; align-items:center; gap:10px;">
-            <img src="icon-192.png" alt="TopoControl" style="width:40px; height:40px; border-radius:8px;">
+            <img src="icon-192.png" alt="Nivelacion CR" style="width:40px; height:40px; border-radius:8px;">
             <div>
-              <b style="color:var(--accent); font-size:0.95rem;">Instalar TopoControl en el Celular</b>
+              <b style="color:var(--accent); font-size:0.95rem;">Instalar Nivelacion CR en el Celular</b>
               <p style="font-size:0.8rem; color:var(--text-muted); margin:0;">Úsala sin conexión en campo como una app nativa.</p>
             </div>
           </div>
@@ -476,12 +476,12 @@
   </div>
 
   <script>
-    let appData = JSON.parse(localStorage.getItem('topo_control_data')) || { projects: [] };
+    let appData = JSON.parse(localStorage.getItem('nivelacion_cr_data')) || { projects: [] };
     let currentProjId = null;
     let currentSessionId = null;
 
     function saveData() {
-      localStorage.setItem('topo_control_data', JSON.stringify(appData));
+      localStorage.setItem('nivelacion_cr_data', JSON.stringify(appData));
     }
 
     function formatNumber(num) {
@@ -498,7 +498,7 @@
       currentProjId = null;
       renderProjects();
       showView('view-projects');
-      document.getElementById('header-title').innerText = "TOPOCONTROL";
+      document.getElementById('header-title').innerText = "NIVELACION CR";
       document.getElementById('header-sub').innerText = "Nivelación de Precisión";
       updateBadge(null);
     }
@@ -1192,7 +1192,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `respaldo_topocontrol_${dateStr}.json`;
+      a.download = `respaldo_nivelacion_cr_${dateStr}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1208,7 +1208,7 @@
         try {
           const imported = JSON.parse(e.target.result);
           if (!imported || !Array.isArray(imported.projects)) {
-            return alert("El archivo seleccionado no tiene el formato válido de TopoControl.");
+            return alert("El archivo seleccionado no tiene el formato válido de Nivelacion CR.");
           }
           const countProj = imported.projects.length;
           const countSess = imported.projects.reduce((acc, p) => acc + (p.sessions ? p.sessions.length : 0), 0);
