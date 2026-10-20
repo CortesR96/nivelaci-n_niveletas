@@ -46,8 +46,12 @@
       border: 1px solid var(--accent);
       color: var(--text-main);
     }
+    .status-badge.in-transit {
+      border-color: var(--warning);
+      color: var(--warning);
+    }
 
-    .container { max-width: 900px; margin: 0 auto; padding: 14px; }
+    .container { max-width: 950px; margin: 0 auto; padding: 14px; }
     .view { display: none; }
     .view.active { display: block; }
 
@@ -82,6 +86,7 @@
     .btn-purple { background: #7c3aed; }
     .btn-purple:hover { background: #6d28d9; }
     .btn-danger { background: var(--danger); }
+    .btn-danger:hover { background: #dc2626; }
     .btn-outline { background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); }
     .btn-outline:hover { background: #1e293b; color: var(--text-main); }
 
@@ -105,7 +110,6 @@
       margin-bottom: 14px;
     }
 
-    /* Tabla topográfica de alta legibilidad */
     .table-container {
       overflow-x: auto;
       border-radius: 8px;
@@ -132,10 +136,36 @@
     tr.row-change { background: #261f36; font-weight: 600; }
     tr.row-separator { background: #0f172a; color: #64748b; text-align: center; }
 
-    .val-diff-neg { color: #f87171; font-weight: bold; } /* Hundimiento */
-    .val-diff-pos { color: #4ade80; font-weight: bold; } /* Levantamiento */
+    .val-diff-neg { color: #f87171; font-weight: bold; }
+    .val-diff-pos { color: #4ade80; font-weight: bold; }
 
-    /* Modal / Popups */
+    .actions-cell {
+      display: flex;
+      gap: 4px;
+      justify-content: flex-end;
+      align-items: center;
+    }
+    .btn-action {
+      padding: 3px 6px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #f8fafc;
+    }
+    .btn-action:hover {
+      background: #334155;
+    }
+    .btn-action.delete:hover {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-action.edit:hover {
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+    }
+
     .modal {
       display: none;
       position: fixed;
@@ -154,6 +184,8 @@
       max-width: 450px;
       border-radius: 12px;
       padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
     }
     .modal-title { font-size: 1.1rem; color: var(--accent); margin-bottom: 14px; font-weight: bold; }
 
@@ -183,6 +215,20 @@
 
     <!-- VISTA 1: LISTADO DE PROYECTOS -->
     <div id="view-projects" class="view active">
+      
+      <!-- TARJETA COPIA DE SEGURIDAD (JSON) -->
+      <div class="card" style="display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; border-color:#334155;">
+        <div>
+          <h4 style="font-size:0.95rem; color:#fff;">💾 Copia de Seguridad Completa</h4>
+          <small style="color:var(--text-muted);">Descarga o restaura todos tus proyectos y carteras en un único archivo JSON.</small>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-outline" style="border-color:var(--accent); color:var(--accent);" onclick="exportJSONBackup()">📥 Descargar JSON</button>
+          <button class="btn btn-outline" onclick="document.getElementById('import-json-file').click()">📤 Cargar JSON</button>
+          <input type="file" id="import-json-file" accept=".json" style="display:none;" onchange="importJSONBackup(event)">
+        </div>
+      </div>
+
       <div class="card">
         <h3 style="margin-bottom:10px;">Nuevo Proyecto / Torre</h3>
         <div class="form-group">
@@ -236,8 +282,8 @@
       <div class="grid-actions">
         <button class="btn btn-primary" onclick="openStartModal()">🟢 1. Arranque / BM</button>
         <button class="btn btn-success" onclick="openInterModal()">🔵 2. Intermedia</button>
-        <button class="btn btn-warning" onclick="openChangeModal()">🟠 3. Nuevo Cambio</button>
-        <button class="btn btn-purple" onclick="openRebindModal()">🟣 4. Pegarse a Cambio</button>
+        <button class="btn btn-warning" onclick="openChangeModal()">🟠 3. Cerrar Cambio (V-)</button>
+        <button class="btn btn-purple" onclick="openRebindModal()">🟣 4. Pegarse / Armar (V+)</button>
       </div>
 
       <!-- TABLA DE CARTERA -->
@@ -251,7 +297,7 @@
               <th>V-</th>
               <th>COTA</th>
               <th>ΔZ (mm)</th>
-              <th>Acción</th>
+              <th style="text-align:center;">Acciones</th>
             </tr>
           </thead>
           <tbody id="survey-table-body">
@@ -324,46 +370,91 @@
     </div>
   </div>
 
-  <!-- MODAL: NUEVO CAMBIO (C#) -->
+  <!-- MODAL: NUEVO CAMBIO (SOLO VISTA MENOS) -->
   <div class="modal" id="modal-change">
     <div class="modal-content">
-      <div class="modal-title">Nuevo Punto de Cambio (C#)</div>
+      <div class="modal-title">Cerrar Cambio de Estación (V-)</div>
+      <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:12px;">
+        Toma la lectura de cierre sobre el punto de cambio. Congelará la cota para que puedas mover el trípode.
+      </p>
       <div class="form-group">
         <label>Nombre del Cambio</label>
         <input type="text" id="change-name" placeholder="Ej: C#1, C#2">
       </div>
       <div class="form-group">
-        <label>Vista Adelante de Cierre (V-) [Vieja estación]</label>
+        <label>Vista Adelante (V-) [Sobre el cambio]</label>
         <input type="number" step="0.001" id="change-vminus" placeholder="Ej: 1.525">
       </div>
-      <div class="form-group">
-        <label>Vista Atrás de Apertura (V+) [Nueva estación]</label>
-        <input type="number" step="0.001" id="change-vplus" placeholder="Ej: 1.519">
-      </div>
-      <button class="btn btn-warning btn-block" onclick="saveChangePoint()">Calcular y Trasladar Nivel</button>
+      <button class="btn btn-warning btn-block" onclick="saveChangePoint()">Calcular Cota y Cerrar Estación</button>
       <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
     </div>
   </div>
 
-  <!-- MODAL: RE-ENGANCHARSE A CAMBIO EXISTENTE -->
+  <!-- MODAL: PEGARSE / ARMAR ESTACIÓN CON VISTA MÁS -->
   <div class="modal" id="modal-rebind">
     <div class="modal-content">
-      <div class="modal-title">Pegarse a Cambio / BM Existente</div>
+      <div class="modal-title">Abrir Estación Instrumental (V+)</div>
+      <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:12px;">
+        Selecciona el punto de referencia o cambio recién medido e ingresa la Vista Atrás (V+) desde la nueva posición del nivel.
+      </p>
       <div class="form-group">
-        <label>Seleccionar Cambio Registrado</label>
+        <label>Punto de Amarre / Cambio</label>
         <select id="rebind-select"></select>
       </div>
       <div class="form-group">
-        <label>Nueva Vista Atrás (V+)</label>
-        <input type="number" step="0.001" id="rebind-vplus" placeholder="Ej: 1.520">
+        <label>Vista Atrás (V+) [Desde nueva estación]</label>
+        <input type="number" step="0.001" id="rebind-vplus" placeholder="Ej: 1.519">
       </div>
-      <button class="btn btn-purple btn-block" onclick="saveRebindPoint()">Establecer Nueva A.inst</button>
+      <button class="btn btn-purple btn-block" onclick="saveRebindPoint()">Calcular Nueva A.inst</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: MODIFICAR / EDITAR FILA -->
+  <div class="modal" id="modal-edit">
+    <div class="modal-content">
+      <div class="modal-title">Modificar Registro</div>
+      <input type="hidden" id="edit-row-idx">
+
+      <div class="form-group" id="edit-group-name">
+        <label>Nombre del Punto / Identificador</label>
+        <input type="text" id="edit-name">
+      </div>
+
+      <div class="form-group" id="edit-group-cota" style="display:none;">
+        <label>Cota Conocida (m)</label>
+        <input type="number" step="0.001" id="edit-cota">
+      </div>
+
+      <div class="form-group" id="edit-group-vplus" style="display:none;">
+        <label>Vista Atrás (V+)</label>
+        <input type="number" step="0.001" id="edit-vplus">
+      </div>
+
+      <div id="edit-group-inter-extra" style="display:none;">
+        <div style="margin: 10px 0; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="edit-obstructed" style="width: auto;" onchange="toggleEditObstructed(this.checked)">
+          <label for="edit-obstructed" style="margin: 0; color: #f59e0b; cursor: pointer;">
+            ⚠️ Niveleta obstruida / Tapada
+          </label>
+        </div>
+        <div class="form-group">
+          <label>Cota Base Teórica (para mm)</label>
+          <input type="number" step="0.001" id="edit-base">
+        </div>
+      </div>
+
+      <div class="form-group" id="edit-group-vminus" style="display:none;">
+        <label>Vista Adelante (V-)</label>
+        <input type="number" step="0.001" id="edit-vminus">
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="saveEditedRow()">Guardar Cambios y Recalcular</button>
       <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
     </div>
   </div>
 
   <script>
-    // ESTADO GLOBAL DE DATOS
     let appData = JSON.parse(localStorage.getItem('topo_control_data')) || { projects: [] };
     let currentProjId = null;
     let currentSessionId = null;
@@ -377,7 +468,6 @@
       return Number(num).toFixed(3);
     }
 
-    // NAVEGACIÓN
     function showView(viewId) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(viewId).classList.add('active');
@@ -389,17 +479,16 @@
       showView('view-projects');
       document.getElementById('header-title').innerText = "TOPOCONTROL";
       document.getElementById('header-sub').innerText = "Nivelación de Precisión";
-      document.getElementById('inst-badge').innerText = "A.inst: --";
+      updateBadge(null);
     }
 
     function goToSessions() {
       currentSessionId = null;
       renderSessions();
       showView('view-sessions');
-      document.getElementById('inst-badge').innerText = "A.inst: --";
+      updateBadge(null);
     }
 
-    // GESTIÓN DE PROYECTOS
     function createProject() {
       const nameInput = document.getElementById('new-proj-name');
       const name = nameInput.value.trim();
@@ -434,12 +523,24 @@
             <h4 style="color:#fff; font-size:1.05rem;">${p.name}</h4>
             <small style="color:var(--text-muted);">${p.sessions.length} jornadas guardadas</small>
           </div>
-          <div>
+          <div style="display:flex; gap:6px;">
             <button class="btn btn-primary" onclick="openProject('${p.id}')">Abrir</button>
+            <button class="btn btn-danger" onclick="deleteProject('${p.id}')" title="Eliminar Proyecto">🗑️</button>
           </div>
         `;
         list.appendChild(div);
       });
+    }
+
+    function deleteProject(projId) {
+      const proj = appData.projects.find(p => p.id === projId);
+      if (!proj) return;
+      const confirmMsg = `¿Deseas eliminar permanentemente el proyecto "${proj.name}" y todas sus ${proj.sessions.length} jornadas?`;
+      if (!confirm(confirmMsg)) return;
+
+      appData.projects = appData.projects.filter(p => p.id !== projId);
+      saveData();
+      renderProjects();
     }
 
     function openProject(id) {
@@ -451,7 +552,6 @@
       showView('view-sessions');
     }
 
-    // GESTIÓN DE SESIONES / FECHAS
     function createSession() {
       const date = document.getElementById('new-session-date').value;
       const desc = document.getElementById('new-session-desc').value.trim();
@@ -488,12 +588,25 @@
             <h4 style="color:var(--accent);">${s.date}</h4>
             <small style="color:var(--text-muted);">${s.desc} (${s.rows.length} lecturas)</small>
           </div>
-          <div>
+          <div style="display:flex; gap:6px;">
             <button class="btn btn-primary" onclick="openField('${s.id}')">Entrar</button>
+            <button class="btn btn-danger" onclick="deleteSession('${s.id}')" title="Eliminar Jornada">🗑️</button>
           </div>
         `;
         list.appendChild(div);
       });
+    }
+
+    function deleteSession(sessionId) {
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      if (!proj) return;
+      const sess = proj.sessions.find(s => s.id === sessionId);
+      if (!sess) return;
+      if (!confirm(`¿Deseas eliminar la jornada del ${sess.date} (${sess.desc})?`)) return;
+
+      proj.sessions = proj.sessions.filter(s => s.id !== sessionId);
+      saveData();
+      renderSessions();
     }
 
     function openField(sessionId) {
@@ -504,22 +617,92 @@
       document.getElementById('header-title').innerText = proj.name;
       document.getElementById('header-sub').innerText = session.date;
 
+      recalculateSession(session);
       renderSurveyTable();
       showView('view-field');
     }
 
-    // MOTOR TOPOGRÁFICO Y RENDER DE TABLA
     function getCurrentSession() {
       const proj = appData.projects.find(p => p.id === currentProjId);
       return proj.sessions.find(s => s.id === currentSessionId);
     }
 
+    function updateBadge(ainst, isPending) {
+      const badge = document.getElementById('inst-badge');
+      if (isPending) {
+        badge.className = "status-badge in-transit";
+        badge.innerText = "TRASLADO (Pendiente V+)";
+      } else if (ainst !== null && ainst !== undefined) {
+        badge.className = "status-badge";
+        badge.innerText = `A.inst: ${formatNumber(ainst)}`;
+      } else {
+        badge.className = "status-badge";
+        badge.innerText = "A.inst: --";
+      }
+    }
+
+    function recalculateSession(session) {
+      if (!session || !session.rows) return;
+
+      let currentAinst = null;
+      const knownCotas = {};
+
+      session.rows.forEach((r, idx) => {
+        if (r.type === 'point' && r.vplus !== null && r.vplus !== undefined && (r.vminus === null || r.vminus === undefined)) {
+          if (r.cota !== null && !isNaN(r.cota)) {
+            knownCotas[r.name] = Number(r.cota);
+          }
+        }
+        else if (r.type === 'station') {
+          const prev = session.rows[idx - 1];
+          if (prev && prev.vplus !== null && prev.vplus !== undefined && !isNaN(prev.vplus)) {
+            let baseCota = prev.cota;
+            if (baseCota === null || isNaN(baseCota)) {
+              baseCota = knownCotas[prev.name];
+            }
+            if (baseCota !== null && baseCota !== undefined && !isNaN(baseCota)) {
+              r.ainst = Number(baseCota) + Number(prev.vplus);
+              currentAinst = r.ainst;
+            }
+          }
+        }
+        else if (r.type === 'point' && (r.vminus !== null || r.obstructed)) {
+          if (r.obstructed) {
+            r.vminus = 'OBSTRUIDO';
+            r.cota = 'OBSTRUIDO';
+          } else if (currentAinst !== null && r.vminus !== null && !isNaN(r.vminus)) {
+            r.cota = currentAinst - Number(r.vminus);
+            knownCotas[r.name] = r.cota;
+          }
+        }
+        else if (r.type === 'change') {
+          if (currentAinst !== null && r.vminus !== null && !isNaN(r.vminus)) {
+            r.cota = currentAinst - Number(r.vminus);
+          }
+          if (r.cota !== null && !isNaN(r.cota)) {
+            knownCotas[r.name] = Number(r.cota);
+          }
+          if (r.vplus === null || r.vplus === undefined) {
+            currentAinst = null;
+          }
+        }
+        else if (r.type === 'rebind') {
+          if (knownCotas[r.name] !== undefined) {
+            r.cota = knownCotas[r.name];
+          }
+        }
+      });
+    }
+
     function renderSurveyTable() {
       const session = getCurrentSession();
+      recalculateSession(session);
+
       const tbody = document.getElementById('survey-table-body');
       tbody.innerHTML = "";
 
       let activeInst = null;
+      let isPendingVplus = false;
       let sumVplus = 0;
       let sumVminus = 0;
       let firstCota = null;
@@ -528,6 +711,10 @@
       session.rows.forEach((r, idx) => {
         if (r.type === 'station') {
           activeInst = r.ainst;
+          isPendingVplus = false;
+        } else if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
+          activeInst = null;
+          isPendingVplus = true;
         }
 
         if (r.vplus !== null && r.vplus !== undefined && !isNaN(r.vplus)) sumVplus += Number(r.vplus);
@@ -543,11 +730,14 @@
         else if (r.type === 'change') tr.className = "row-change";
         else if (r.type === 'separator') tr.className = "row-separator";
 
-        // Display de valores normales vs obstruidos
         let vminusDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">OBSTRUIDO</span>' : formatNumber(r.vminus);
         let cotaDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">--</span>' : formatNumber(r.cota);
 
-        // Cálculo de asentamiento en mm
+        let vplusDisplay = formatNumber(r.vplus);
+        if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
+          vplusDisplay = '<span style="color:var(--warning); font-size:0.75rem;">(Mover trípode)</span>';
+        }
+
         let diffHtml = "-";
         if (!r.obstructed && r.baseCota && r.cota) {
           const deltaZ = (r.cota - r.baseCota) * 1000;
@@ -555,22 +745,30 @@
           diffHtml = `<span class="${cls}">${deltaZ > 0 ? '+' : ''}${deltaZ.toFixed(1)}</span>`;
         }
 
+        let actionsHtml = "";
+        if (r.type !== 'separator') {
+          actionsHtml = `
+            <div class="actions-cell">
+              <button class="btn-action edit" onclick="openEditModal(${idx})" title="Modificar">✏️</button>
+              <button class="btn-action delete" onclick="deleteRow(${idx})" title="Eliminar">🗑️</button>
+            </div>
+          `;
+        }
+
         tr.innerHTML = `
           <td>${r.name || ""}</td>
-          <td>${formatNumber(r.vplus)}</td>
+          <td>${vplusDisplay}</td>
           <td>${formatNumber(r.ainst)}</td>
           <td>${vminusDisplay}</td>
           <td style="font-weight:bold;">${cotaDisplay}</td>
           <td>${diffHtml}</td>
-          <td><button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem;" onclick="deleteRow(${idx})">✕</button></td>
+          <td style="text-align:center;">${actionsHtml}</td>
         `;
         tbody.appendChild(tr);
       });
 
-      // Actualizar badge de estación activa
-      document.getElementById('inst-badge').innerText = activeInst ? `A.inst: ${formatNumber(activeInst)}` : "A.inst: --";
+      updateBadge(activeInst, isPendingVplus);
 
-      // Estadísticas
       document.getElementById('sum-vplus').innerText = formatNumber(sumVplus);
       document.getElementById('sum-vminus').innerText = formatNumber(sumVminus);
       if (firstCota !== null && lastCota !== null) {
@@ -584,23 +782,44 @@
 
     function getActiveInstrumentHeight() {
       const session = getCurrentSession();
-      for (let i = session.rows.length - 1; i >= 0; i--) {
-        if (session.rows[i].type === 'station' && session.rows[i].ainst) {
-          return Number(session.rows[i].ainst);
+      let current = null;
+      for (let i = 0; i < session.rows.length; i++) {
+        const r = session.rows[i];
+        if (r.type === 'station' && r.ainst) {
+          current = Number(r.ainst);
+        } else if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
+          current = null;
         }
       }
-      return null;
+      return current;
     }
 
     function deleteRow(idx) {
-      if (!confirm("¿Deseas eliminar este registro?")) return;
       const session = getCurrentSession();
-      session.rows.splice(idx, 1);
+      const r = session.rows[idx];
+      if (!r) return;
+
+      let msg = `¿Deseas eliminar el registro "${r.name || 'Fila'}"?`;
+      const nextRow = session.rows[idx + 1];
+      let deleteNextStation = false;
+
+      if (nextRow && nextRow.type === 'station' && (r.type === 'change' || r.type === 'point' || r.type === 'rebind') && r.vplus) {
+        msg += `\n(También se retirará la estación Δ asociada).`;
+        deleteNextStation = true;
+      }
+
+      if (!confirm(msg)) return;
+
+      if (deleteNextStation) {
+        session.rows.splice(idx, 2);
+      } else {
+        session.rows.splice(idx, 1);
+      }
+
       saveData();
       renderSurveyTable();
     }
 
-    // MODALES Y ENTRADA DE DATOS
     function closeModals() {
       document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
     }
@@ -612,7 +831,7 @@
     }
 
     function saveStartPoint() {
-      const name = document.getElementById('start-name').value.trim() || "Cota Arranque";
+      const name = document.getElementById('start-name').value.trim() || "Cota Arranque 1";
       const cota = parseFloat(document.getElementById('start-cota').value);
       const vplus = parseFloat(document.getElementById('start-vplus').value);
 
@@ -621,7 +840,6 @@
       const ainst = cota + vplus;
       const session = getCurrentSession();
 
-      // Fila 1: Punto de arranque
       session.rows.push({
         type: 'point',
         name: name,
@@ -633,7 +851,6 @@
         obstructed: false
       });
 
-      // Fila 2: Estación Instrumental
       session.rows.push({
         type: 'station',
         name: 'Δ',
@@ -652,7 +869,9 @@
 
     function openInterModal() {
       const currentAinst = getActiveInstrumentHeight();
-      if (!currentAinst) return alert("Debes iniciar primero una estación con un Punto de Arranque o Cambio");
+      if (!currentAinst) {
+        return alert("No hay una estación activa. Inicia primero con 'Arranque / BM' o 'Pegarse / Armar (V+)'.");
+      }
       document.getElementById('inter-name').value = "";
       document.getElementById('inter-vminus').value = "";
       document.getElementById('inter-obstructed').checked = false;
@@ -718,47 +937,33 @@
 
     function openChangeModal() {
       const currentAinst = getActiveInstrumentHeight();
-      if (!currentAinst) return alert("No hay una estación activa para cerrar el cambio");
+      if (!currentAinst) return alert("No hay una estación activa para cerrar el cambio.");
 
       const session = getCurrentSession();
       const changeCount = session.rows.filter(r => r.type === 'change').length + 1;
       document.getElementById('change-name').value = `C#${changeCount}`;
       document.getElementById('change-vminus').value = "";
-      document.getElementById('change-vplus').value = "";
       document.getElementById('modal-change').classList.add('active');
     }
 
     function saveChangePoint() {
       const name = document.getElementById('change-name').value.trim();
       const vminus = parseFloat(document.getElementById('change-vminus').value);
-      const vplus = parseFloat(document.getElementById('change-vplus').value);
 
-      if (!name || isNaN(vminus) || isNaN(vplus)) return alert("Completa el nombre, V- y V+");
+      if (!name || isNaN(vminus)) return alert("Completa el nombre del cambio y la Vista Adelante (V-)");
 
       const currentAinst = getActiveInstrumentHeight();
       const cota = currentAinst - vminus;
-      const newAinst = cota + vplus;
 
       const session = getCurrentSession();
 
       session.rows.push({
         type: 'change',
         name: name,
-        vplus: vplus,
+        vplus: null,
         ainst: null,
         vminus: vminus,
         cota: cota,
-        baseCota: null,
-        obstructed: false
-      });
-
-      session.rows.push({
-        type: 'station',
-        name: 'Δ',
-        vplus: null,
-        ainst: newAinst,
-        vminus: null,
-        cota: null,
         baseCota: null,
         obstructed: false
       });
@@ -770,18 +975,45 @@
 
     function openRebindModal() {
       const session = getCurrentSession();
-      const availablePoints = session.rows.filter(r => (r.type === 'change' || (r.name && r.name.toLowerCase().includes('arranque'))) && r.cota !== null && !r.obstructed);
+      recalculateSession(session);
 
-      if (availablePoints.length === 0) return alert("Aún no tienes cambios ni puntos fijos registrados en esta sesión");
+      const pointsMap = new Map();
+      session.rows.forEach((r, idx) => {
+        if (r.name && r.name !== 'Δ' && r.name !== '-' && r.cota !== null && r.cota !== undefined && !isNaN(r.cota) && !r.obstructed) {
+          if (r.type === 'change' || r.type === 'rebind' || (r.name.toLowerCase().includes('arranque') || r.name.toLowerCase().includes('bm'))) {
+            pointsMap.set(r.name, {
+              name: r.name,
+              cota: Number(r.cota),
+              rowIdx: idx,
+              type: r.type,
+              vplus: r.vplus
+            });
+          }
+        }
+      });
+
+      if (pointsMap.size === 0) return alert("No hay cambios ni puntos fijos activos registrados en esta sesión.");
 
       const select = document.getElementById('rebind-select');
       select.innerHTML = "";
-      availablePoints.forEach((p) => {
+
+      const lastRow = session.rows[session.rows.length - 1];
+      const isPendingChange = lastRow && lastRow.type === 'change' && (lastRow.vplus === null || lastRow.vplus === undefined);
+
+      pointsMap.forEach((p) => {
         const opt = document.createElement('option');
         opt.value = p.cota;
-        opt.text = `${p.name} (Cota: ${formatNumber(p.cota)})`;
+        opt.dataset.name = p.name;
+        opt.dataset.rowIdx = p.rowIdx;
+        const isCurrentPending = isPendingChange && p.rowIdx === (session.rows.length - 1);
+        opt.dataset.isPending = isCurrentPending ? "true" : "false";
+        opt.text = `${p.name} (Cota: ${formatNumber(p.cota)})${isCurrentPending ? " ★ PENDIENTE V+" : ""}`;
         select.appendChild(opt);
       });
+
+      if (isPendingChange) {
+        select.value = lastRow.cota;
+      }
 
       document.getElementById('rebind-vplus').value = "";
       document.getElementById('modal-rebind').classList.add('active');
@@ -789,7 +1021,10 @@
 
     function saveRebindPoint() {
       const select = document.getElementById('rebind-select');
-      const pointName = select.options[select.selectedIndex].text.split(' ')[0];
+      const selectedOption = select.options[select.selectedIndex];
+      const pointName = selectedOption.dataset.name || selectedOption.text.split(' ')[0];
+      const rowIdx = parseInt(selectedOption.dataset.rowIdx);
+      const isPending = selectedOption.dataset.isPending === "true";
       const cota = parseFloat(select.value);
       const vplus = parseFloat(document.getElementById('rebind-vplus').value);
 
@@ -798,18 +1033,21 @@
       const newAinst = cota + vplus;
       const session = getCurrentSession();
 
-      session.rows.push({ type: 'separator', name: '-', vplus: null, ainst: null, vminus: null, cota: null, baseCota: null, obstructed: false });
-
-      session.rows.push({
-        type: 'rebind',
-        name: pointName,
-        vplus: vplus,
-        ainst: null,
-        vminus: null,
-        cota: cota,
-        baseCota: null,
-        obstructed: false
-      });
+      if (isPending && !isNaN(rowIdx) && session.rows[rowIdx]) {
+        session.rows[rowIdx].vplus = vplus;
+      } else {
+        session.rows.push({ type: 'separator', name: '-', vplus: null, ainst: null, vminus: null, cota: null, baseCota: null, obstructed: false });
+        session.rows.push({
+          type: 'rebind',
+          name: pointName,
+          vplus: vplus,
+          ainst: null,
+          vminus: null,
+          cota: cota,
+          baseCota: null,
+          obstructed: false
+        });
+      }
 
       session.rows.push({
         type: 'station',
@@ -827,10 +1065,158 @@
       renderSurveyTable();
     }
 
-    // EXPORTACIÓN A EXCEL (.XLSX)
+    function openEditModal(idx) {
+      const session = getCurrentSession();
+      const r = session.rows[idx];
+      if (!r) return;
+
+      document.getElementById('edit-row-idx').value = idx;
+      document.getElementById('edit-name').value = r.name || "";
+
+      document.getElementById('edit-group-cota').style.display = "none";
+      document.getElementById('edit-group-vplus').style.display = "none";
+      document.getElementById('edit-group-vminus').style.display = "none";
+      document.getElementById('edit-group-inter-extra').style.display = "none";
+
+      if (r.type === 'station') {
+        document.getElementById('edit-group-name').style.display = "block";
+        document.getElementById('edit-group-vplus').style.display = "none";
+      } else {
+        document.getElementById('edit-group-name').style.display = "block";
+        
+        if (r.vplus !== null && r.vplus !== undefined) {
+          document.getElementById('edit-group-vplus').style.display = "block";
+          document.getElementById('edit-vplus').value = r.vplus;
+        }
+
+        if (r.vminus !== null && r.vminus !== undefined) {
+          document.getElementById('edit-group-vminus').style.display = "block";
+          document.getElementById('edit-vminus').value = r.obstructed ? "" : r.vminus;
+        }
+
+        if (r.type === 'point' && (r.vminus !== null || r.obstructed)) {
+          document.getElementById('edit-group-inter-extra').style.display = "block";
+          document.getElementById('edit-obstructed').checked = !!r.obstructed;
+          document.getElementById('edit-base').value = r.baseCota || "";
+          toggleEditObstructed(!!r.obstructed);
+        }
+
+        if (r.type === 'point' && r.vplus !== null && !r.vminus) {
+          document.getElementById('edit-group-cota').style.display = "block";
+          document.getElementById('edit-cota').value = r.cota;
+        }
+      }
+
+      document.getElementById('modal-edit').classList.add('active');
+    }
+
+    function toggleEditObstructed(isObstructed) {
+      const vminusInput = document.getElementById('edit-vminus');
+      if (isObstructed) {
+        vminusInput.disabled = true;
+        vminusInput.value = "";
+      } else {
+        vminusInput.disabled = false;
+      }
+    }
+
+    function saveEditedRow() {
+      const idx = parseInt(document.getElementById('edit-row-idx').value);
+      const session = getCurrentSession();
+      const r = session.rows[idx];
+      if (!r) return;
+
+      r.name = document.getElementById('edit-name').value.trim() || r.name;
+
+      if (document.getElementById('edit-group-cota').style.display !== "none") {
+        const newCota = parseFloat(document.getElementById('edit-cota').value);
+        if (!isNaN(newCota)) r.cota = newCota;
+      }
+
+      if (document.getElementById('edit-group-vplus').style.display !== "none") {
+        const newVplus = parseFloat(document.getElementById('edit-vplus').value);
+        if (!isNaN(newVplus)) r.vplus = newVplus;
+      }
+
+      if (document.getElementById('edit-group-inter-extra').style.display !== "none") {
+        const isObstructed = document.getElementById('edit-obstructed').checked;
+        r.obstructed = isObstructed;
+        const base = parseFloat(document.getElementById('edit-base').value);
+        r.baseCota = isNaN(base) ? null : base;
+      }
+
+      if (document.getElementById('edit-group-vminus').style.display !== "none") {
+        if (!r.obstructed) {
+          const newVminus = parseFloat(document.getElementById('edit-vminus').value);
+          if (!isNaN(newVminus)) r.vminus = newVminus;
+        } else {
+          r.vminus = 'OBSTRUIDO';
+          r.cota = 'OBSTRUIDO';
+        }
+      }
+
+      saveData();
+      closeModals();
+      renderSurveyTable();
+    }
+
+    // GESTIÓN DE COPIA DE SEGURIDAD (JSON)
+    function exportJSONBackup() {
+      if (!appData.projects || appData.projects.length === 0) {
+        if (!confirm("No tienes proyectos registrados actualmente. ¿Deseas descargar un archivo de respaldo vacío?")) return;
+      }
+      const dateStr = new Date().toISOString().split('T')[0];
+      const dataStr = JSON.stringify(appData, null, 2);
+      const blob = new Blob([dataStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `respaldo_topocontrol_${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importJSONBackup(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (!imported || !Array.isArray(imported.projects)) {
+            return alert("El archivo seleccionado no tiene el formato válido de TopoControl.");
+          }
+          const countProj = imported.projects.length;
+          const countSess = imported.projects.reduce((acc, p) => acc + (p.sessions ? p.sessions.length : 0), 0);
+
+          const confirmMsg = `Se encontraron ${countProj} proyecto(s) y ${countSess} jornada(s) en este archivo de respaldo.\n\n` +
+                             `⚠️ ATENCIÓN: Esta acción reemplazará la base de datos actual del dispositivo con la del archivo.\n` +
+                             `¿Deseas continuar y cargar todos los proyectos?`;
+          if (!confirm(confirmMsg)) {
+            event.target.value = "";
+            return;
+          }
+
+          appData = imported;
+          saveData();
+          renderProjects();
+          alert("¡Copia de seguridad restaurada con éxito! Todos los proyectos han sido cargados.");
+        } catch (err) {
+          alert("Error al leer el archivo JSON: " + err.message);
+        } finally {
+          event.target.value = "";
+        }
+      };
+      reader.readAsText(file);
+    }
+
     function exportToExcel() {
       const proj = appData.projects.find(p => p.id === currentProjId);
       const session = getCurrentSession();
+      recalculateSession(session);
 
       const wsData = [
         ["PROYECTO:", proj.name, "", "FECHA:", session.date],
@@ -873,12 +1259,12 @@
       XLSX.writeFile(wb, `Nivelacion_${proj.name}_${session.date}.xlsx`);
     }
 
-    // EXPORTACIÓN A PDF
     function exportToPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       const proj = appData.projects.find(p => p.id === currentProjId);
       const session = getCurrentSession();
+      recalculateSession(session);
 
       doc.setFontSize(14);
       doc.text("REGISTRO DE CONTROL DE ASENTAMIENTOS", 14, 15);
@@ -924,7 +1310,6 @@
       doc.save(`Reporte_${proj.name}_${session.date}.pdf`);
     }
 
-    // ARRANQUE AUTOMÁTICO
     renderProjects();
   </script>
 </body>
