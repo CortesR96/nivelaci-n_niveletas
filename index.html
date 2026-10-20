@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Control de Nivelación - Asentamiento de Torres</title>
+  <!-- SheetJS para Excel y jsPDF para reportes PDF -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #131c2e;
+      --card-border: #1e293b;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text-main); padding-bottom: 70px; }
+
+    header {
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+    .status-badge {
+      background: #1e293b;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8rem;
+      border: 1px solid var(--accent);
+      color: var(--text-main);
+    }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 14px; }
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      color: #fff;
+      transition: background 0.15s;
+    }
+    .btn-block { width: 100%; }
+    .btn-primary { background: var(--accent-hover); }
+    .btn-primary:hover { background: #0369a1; }
+    .btn-success { background: #059669; }
+    .btn-success:hover { background: #047857; }
+    .btn-warning { background: #d97706; }
+    .btn-purple { background: #7c3aed; }
+    .btn-purple:hover { background: #6d28d9; }
+    .btn-danger { background: var(--danger); }
+    .btn-outline { background: transparent; border: 1px solid var(--card-border); color: var(--text-muted); }
+    .btn-outline:hover { background: #1e293b; color: var(--text-main); }
+
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.82rem; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; font-weight: 600; }
+    input, select {
+      width: 100%;
+      padding: 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+    }
+    input:focus, select:focus { outline: none; border-color: var(--accent); }
+
+    .grid-actions {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    /* Tabla topográfica de alta legibilidad */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      background: #0b1120;
+    }
+    table { width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem; }
+    th {
+      background: #1e293b;
+      color: #38bdf8;
+      padding: 10px 8px;
+      font-weight: 700;
+      border-bottom: 1px solid #334155;
+      white-space: nowrap;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #1e293b;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    tr.row-station { background: #132742; font-weight: bold; color: #38bdf8; }
+    tr.row-change { background: #261f36; font-weight: 600; }
+    tr.row-separator { background: #0f172a; color: #64748b; text-align: center; }
+
+    .val-diff-neg { color: #f87171; font-weight: bold; } /* Hundimiento */
+    .val-diff-pos { color: #4ade80; font-weight: bold; } /* Levantamiento */
+
+    /* Modal / Popups */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--card-bg);
+      border: 1px solid #334155;
+      width: 100%;
+      max-width: 450px;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .modal-title { font-size: 1.1rem; color: var(--accent); margin-bottom: 14px; font-weight: bold; }
+
+    .stats-bar {
+      display: flex;
+      justify-content: space-between;
+      background: #0f172a;
+      border: 1px solid #334155;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div>
+      <h1 id="header-title">TOPOCONTROL</h1>
+      <small id="header-sub" style="color:var(--text-muted)">Nivelación de Precisión</small>
+    </div>
+    <div class="status-badge" id="inst-badge">A.inst: --</div>
+  </header>
+
+  <div class="container">
+
+    <!-- VISTA 1: LISTADO DE PROYECTOS -->
+    <div id="view-projects" class="view active">
+      <div class="card">
+        <h3 style="margin-bottom:10px;">Nuevo Proyecto / Torre</h3>
+        <div class="form-group">
+          <label>Nombre del Proyecto / Estructura</label>
+          <input type="text" id="new-proj-name" placeholder="Ej: Torre 8 - Línea 115kV">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="createProject()">+ Crear Proyecto</button>
+      </div>
+
+      <h3 style="margin: 15px 0 10px 0; color:var(--text-muted);">Proyectos Registrados</h3>
+      <div id="project-list"></div>
+    </div>
+
+    <!-- VISTA 2: SESIONES / JORNADAS DEL PROYECTO -->
+    <div id="view-sessions" class="view">
+      <button class="btn btn-outline" style="margin-bottom: 12px;" onclick="goToProjects()">← Volver a Proyectos</button>
+      
+      <div class="card">
+        <h2 id="proj-title" style="color:var(--accent);">--</h2>
+        <p style="color:var(--text-muted); font-size: 0.85rem; margin-top:4px;">Gestión de campañas de nivelación</p>
+      </div>
+
+      <div class="card">
+        <h3>+ Nueva Jornada de Nivelación</h3>
+        <div class="form-group" style="margin-top: 10px;">
+          <label>Fecha de la Medición</label>
+          <input type="date" id="new-session-date">
+        </div>
+        <div class="form-group">
+          <label>Descripción / Observaciones</label>
+          <input type="text" id="new-session-desc" placeholder="Ej: Control posterior al vaciado">
+        </div>
+        <button class="btn btn-success btn-block" onclick="createSession()">Iniciar Nivelación</button>
+      </div>
+
+      <h3 style="margin: 15px 0 10px 0; color:var(--text-muted);">Jornadas Guardadas</h3>
+      <div id="session-list"></div>
+    </div>
+
+    <!-- VISTA 3: CARTERA DE NIVELACIÓN EN CAMPO -->
+    <div id="view-field" class="view">
+      <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+        <button class="btn btn-outline" onclick="goToSessions()">← Salir a Jornadas</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-success" onclick="exportToExcel()">📊 Excel</button>
+          <button class="btn btn-primary" onclick="exportToPDF()">📑 PDF</button>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN RÁPIDA -->
+      <div class="grid-actions">
+        <button class="btn btn-primary" onclick="openStartModal()">🟢 1. Arranque / BM</button>
+        <button class="btn btn-success" onclick="openInterModal()">🔵 2. Intermedia</button>
+        <button class="btn btn-warning" onclick="openChangeModal()">🟠 3. Nuevo Cambio</button>
+        <button class="btn btn-purple" onclick="openRebindModal()">🟣 4. Pegarse a Cambio</button>
+      </div>
+
+      <!-- TABLA DE CARTERA -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Δ / Punto</th>
+              <th>V+</th>
+              <th>A.inst</th>
+              <th>V-</th>
+              <th>COTA</th>
+              <th>ΔZ (mm)</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="survey-table-body">
+            <!-- Filas dinámicas -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- RESUMEN DE COMPROBACIÓN -->
+      <div class="stats-bar" id="stats-bar">
+        <div>Σ V+: <b id="sum-vplus">0.000</b></div>
+        <div>Σ V-: <b id="sum-vminus">0.000</b></div>
+        <div>Cierre: <b id="closure-check">0.000</b></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL: ARRANQUE / BM -->
+  <div class="modal" id="modal-start">
+    <div class="modal-content">
+      <div class="modal-title">Lectura de Arranque (BM / Niveleta)</div>
+      <div class="form-group">
+        <label>Nombre del Punto / BM</label>
+        <input type="text" id="start-name" value="Cota Arranque 1">
+      </div>
+      <div class="form-group">
+        <label>Cota Conocida (m)</label>
+        <input type="number" step="0.001" id="start-cota" placeholder="Ej: 1457.900">
+      </div>
+      <div class="form-group">
+        <label>Vista Atrás (V+)</label>
+        <input type="number" step="0.001" id="start-vplus" placeholder="Ej: 0.268">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="saveStartPoint()">Fijar Estación</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: LECTURA INTERMEDIA -->
+  <div class="modal" id="modal-inter">
+    <div class="modal-content">
+      <div class="modal-title">Lectura Intermedia (Perno / Eje)</div>
+      <div class="form-group">
+        <label>Nombre del Punto</label>
+        <input type="text" id="inter-name" placeholder="Ej: 1B, 2A, 1'C, etc.">
+      </div>
+
+      <!-- CHECKBOX DE OBSTRUCCIÓN -->
+      <div style="margin: 12px 0; display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" id="inter-obstructed" style="width: auto;" onchange="toggleObstructed(this.checked)">
+        <label for="inter-obstructed" style="margin: 0; color: #f59e0b; cursor: pointer;">
+          ⚠️ Niveleta obstruida / Tapada (Sin lectura)
+        </label>
+      </div>
+
+      <div id="inter-inputs-container">
+        <div class="form-group">
+          <label>Cota Base Teórica (opcional para mm)</label>
+          <input type="number" step="0.001" id="inter-base" placeholder="Ej: 1458.000">
+        </div>
+        <div class="form-group">
+          <label>Vista Adelante (V-)</label>
+          <input type="number" step="0.001" id="inter-vminus" placeholder="Ej: 0.162">
+        </div>
+      </div>
+
+      <button class="btn btn-success btn-block" onclick="saveInterPoint()">Registrar Lectura</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVO CAMBIO (C#) -->
+  <div class="modal" id="modal-change">
+    <div class="modal-content">
+      <div class="modal-title">Nuevo Punto de Cambio (C#)</div>
+      <div class="form-group">
+        <label>Nombre del Cambio</label>
+        <input type="text" id="change-name" placeholder="Ej: C#1, C#2">
+      </div>
+      <div class="form-group">
+        <label>Vista Adelante de Cierre (V-) [Vieja estación]</label>
+        <input type="number" step="0.001" id="change-vminus" placeholder="Ej: 1.525">
+      </div>
+      <div class="form-group">
+        <label>Vista Atrás de Apertura (V+) [Nueva estación]</label>
+        <input type="number" step="0.001" id="change-vplus" placeholder="Ej: 1.519">
+      </div>
+      <button class="btn btn-warning btn-block" onclick="saveChangePoint()">Calcular y Trasladar Nivel</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: RE-ENGANCHARSE A CAMBIO EXISTENTE -->
+  <div class="modal" id="modal-rebind">
+    <div class="modal-content">
+      <div class="modal-title">Pegarse a Cambio / BM Existente</div>
+      <div class="form-group">
+        <label>Seleccionar Cambio Registrado</label>
+        <select id="rebind-select"></select>
+      </div>
+      <div class="form-group">
+        <label>Nueva Vista Atrás (V+)</label>
+        <input type="number" step="0.001" id="rebind-vplus" placeholder="Ej: 1.520">
+      </div>
+      <button class="btn btn-purple btn-block" onclick="saveRebindPoint()">Establecer Nueva A.inst</button>
+      <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
+    </div>
+  </div>
+
+  <script>
+    // ESTADO GLOBAL DE DATOS
+    let appData = JSON.parse(localStorage.getItem('topo_control_data')) || { projects: [] };
+    let currentProjId = null;
+    let currentSessionId = null;
+
+    function saveData() {
+      localStorage.setItem('topo_control_data', JSON.stringify(appData));
+    }
+
+    function formatNumber(num) {
+      if (num === null || num === undefined || isNaN(num) || num === "") return "";
+      return Number(num).toFixed(3);
+    }
+
+    // NAVEGACIÓN
+    function showView(viewId) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+    }
+
+    function goToProjects() {
+      currentProjId = null;
+      renderProjects();
+      showView('view-projects');
+      document.getElementById('header-title').innerText = "TOPOCONTROL";
+      document.getElementById('header-sub').innerText = "Nivelación de Precisión";
+      document.getElementById('inst-badge').innerText = "A.inst: --";
+    }
+
+    function goToSessions() {
+      currentSessionId = null;
+      renderSessions();
+      showView('view-sessions');
+      document.getElementById('inst-badge').innerText = "A.inst: --";
+    }
+
+    // GESTIÓN DE PROYECTOS
+    function createProject() {
+      const nameInput = document.getElementById('new-proj-name');
+      const name = nameInput.value.trim();
+      if (!name) return alert("Ingresa un nombre de proyecto");
+
+      const proj = {
+        id: 'proj_' + Date.now(),
+        name: name,
+        sessions: []
+      };
+      appData.projects.push(proj);
+      saveData();
+      nameInput.value = "";
+      renderProjects();
+    }
+
+    function renderProjects() {
+      const list = document.getElementById('project-list');
+      list.innerHTML = "";
+      if (appData.projects.length === 0) {
+        list.innerHTML = "<p style='color:var(--text-muted);'>No hay proyectos creados aún.</p>";
+        return;
+      }
+      appData.projects.forEach(p => {
+        const div = document.createElement('div');
+        div.className = "card";
+        div.style.display = "flex";
+        div.style.justifyContent = "space-between";
+        div.style.alignItems = "center";
+        div.innerHTML = `
+          <div>
+            <h4 style="color:#fff; font-size:1.05rem;">${p.name}</h4>
+            <small style="color:var(--text-muted);">${p.sessions.length} jornadas guardadas</small>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="openProject('${p.id}')">Abrir</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function openProject(id) {
+      currentProjId = id;
+      const proj = appData.projects.find(p => p.id === id);
+      document.getElementById('proj-title').innerText = proj.name;
+      document.getElementById('new-session-date').valueAsDate = new Date();
+      renderSessions();
+      showView('view-sessions');
+    }
+
+    // GESTIÓN DE SESIONES / FECHAS
+    function createSession() {
+      const date = document.getElementById('new-session-date').value;
+      const desc = document.getElementById('new-session-desc').value.trim();
+      if (!date) return alert("Selecciona una fecha");
+
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      const session = {
+        id: 'sess_' + Date.now(),
+        date: date,
+        desc: desc || "Control de nivelación",
+        rows: []
+      };
+      proj.sessions.unshift(session);
+      saveData();
+      openField(session.id);
+    }
+
+    function renderSessions() {
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      const list = document.getElementById('session-list');
+      list.innerHTML = "";
+      if (proj.sessions.length === 0) {
+        list.innerHTML = "<p style='color:var(--text-muted);'>No hay nivelaciones en este proyecto.</p>";
+        return;
+      }
+      proj.sessions.forEach(s => {
+        const div = document.createElement('div');
+        div.className = "card";
+        div.style.display = "flex";
+        div.style.justifyContent = "space-between";
+        div.style.alignItems = "center";
+        div.innerHTML = `
+          <div>
+            <h4 style="color:var(--accent);">${s.date}</h4>
+            <small style="color:var(--text-muted);">${s.desc} (${s.rows.length} lecturas)</small>
+          </div>
+          <div>
+            <button class="btn btn-primary" onclick="openField('${s.id}')">Entrar</button>
+          </div>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function openField(sessionId) {
+      currentSessionId = sessionId;
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      const session = proj.sessions.find(s => s.id === sessionId);
+
+      document.getElementById('header-title').innerText = proj.name;
+      document.getElementById('header-sub').innerText = session.date;
+
+      renderSurveyTable();
+      showView('view-field');
+    }
+
+    // MOTOR TOPOGRÁFICO Y RENDER DE TABLA
+    function getCurrentSession() {
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      return proj.sessions.find(s => s.id === currentSessionId);
+    }
+
+    function renderSurveyTable() {
+      const session = getCurrentSession();
+      const tbody = document.getElementById('survey-table-body');
+      tbody.innerHTML = "";
+
+      let activeInst = null;
+      let sumVplus = 0;
+      let sumVminus = 0;
+      let firstCota = null;
+      let lastCota = null;
+
+      session.rows.forEach((r, idx) => {
+        if (r.type === 'station') {
+          activeInst = r.ainst;
+        }
+
+        if (r.vplus !== null && r.vplus !== undefined && !isNaN(r.vplus)) sumVplus += Number(r.vplus);
+        if (r.vminus !== null && r.vminus !== undefined && !isNaN(r.vminus) && !r.obstructed) sumVminus += Number(r.vminus);
+
+        if (r.cota !== null && r.cota !== undefined && !isNaN(r.cota) && !r.obstructed) {
+          if (firstCota === null) firstCota = Number(r.cota);
+          lastCota = Number(r.cota);
+        }
+
+        const tr = document.createElement('tr');
+        if (r.type === 'station') tr.className = "row-station";
+        else if (r.type === 'change') tr.className = "row-change";
+        else if (r.type === 'separator') tr.className = "row-separator";
+
+        // Display de valores normales vs obstruidos
+        let vminusDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">OBSTRUIDO</span>' : formatNumber(r.vminus);
+        let cotaDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">--</span>' : formatNumber(r.cota);
+
+        // Cálculo de asentamiento en mm
+        let diffHtml = "-";
+        if (!r.obstructed && r.baseCota && r.cota) {
+          const deltaZ = (r.cota - r.baseCota) * 1000;
+          const cls = deltaZ < 0 ? 'val-diff-neg' : (deltaZ > 0 ? 'val-diff-pos' : '');
+          diffHtml = `<span class="${cls}">${deltaZ > 0 ? '+' : ''}${deltaZ.toFixed(1)}</span>`;
+        }
+
+        tr.innerHTML = `
+          <td>${r.name || ""}</td>
+          <td>${formatNumber(r.vplus)}</td>
+          <td>${formatNumber(r.ainst)}</td>
+          <td>${vminusDisplay}</td>
+          <td style="font-weight:bold;">${cotaDisplay}</td>
+          <td>${diffHtml}</td>
+          <td><button class="btn btn-outline" style="padding:2px 6px; font-size:0.75rem;" onclick="deleteRow(${idx})">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Actualizar badge de estación activa
+      document.getElementById('inst-badge').innerText = activeInst ? `A.inst: ${formatNumber(activeInst)}` : "A.inst: --";
+
+      // Estadísticas
+      document.getElementById('sum-vplus').innerText = formatNumber(sumVplus);
+      document.getElementById('sum-vminus').innerText = formatNumber(sumVminus);
+      if (firstCota !== null && lastCota !== null) {
+        const deltaH = sumVplus - sumVminus;
+        const deltaCota = lastCota - firstCota;
+        document.getElementById('closure-check').innerText = `${formatNumber(deltaH)} | ΔZ: ${formatNumber(deltaCota)}`;
+      } else {
+        document.getElementById('closure-check').innerText = "0.000";
+      }
+    }
+
+    function getActiveInstrumentHeight() {
+      const session = getCurrentSession();
+      for (let i = session.rows.length - 1; i >= 0; i--) {
+        if (session.rows[i].type === 'station' && session.rows[i].ainst) {
+          return Number(session.rows[i].ainst);
+        }
+      }
+      return null;
+    }
+
+    function deleteRow(idx) {
+      if (!confirm("¿Deseas eliminar este registro?")) return;
+      const session = getCurrentSession();
+      session.rows.splice(idx, 1);
+      saveData();
+      renderSurveyTable();
+    }
+
+    // MODALES Y ENTRADA DE DATOS
+    function closeModals() {
+      document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+    }
+
+    function openStartModal() {
+      document.getElementById('start-cota').value = "";
+      document.getElementById('start-vplus').value = "";
+      document.getElementById('modal-start').classList.add('active');
+    }
+
+    function saveStartPoint() {
+      const name = document.getElementById('start-name').value.trim() || "Cota Arranque";
+      const cota = parseFloat(document.getElementById('start-cota').value);
+      const vplus = parseFloat(document.getElementById('start-vplus').value);
+
+      if (isNaN(cota) || isNaN(vplus)) return alert("Ingresa Cota y Vista Atrás (V+) válidas");
+
+      const ainst = cota + vplus;
+      const session = getCurrentSession();
+
+      // Fila 1: Punto de arranque
+      session.rows.push({
+        type: 'point',
+        name: name,
+        vplus: vplus,
+        ainst: null,
+        vminus: null,
+        cota: cota,
+        baseCota: null,
+        obstructed: false
+      });
+
+      // Fila 2: Estación Instrumental
+      session.rows.push({
+        type: 'station',
+        name: 'Δ',
+        vplus: null,
+        ainst: ainst,
+        vminus: null,
+        cota: null,
+        baseCota: null,
+        obstructed: false
+      });
+
+      saveData();
+      closeModals();
+      renderSurveyTable();
+    }
+
+    function openInterModal() {
+      const currentAinst = getActiveInstrumentHeight();
+      if (!currentAinst) return alert("Debes iniciar primero una estación con un Punto de Arranque o Cambio");
+      document.getElementById('inter-name').value = "";
+      document.getElementById('inter-vminus').value = "";
+      document.getElementById('inter-obstructed').checked = false;
+      toggleObstructed(false);
+      document.getElementById('modal-inter').classList.add('active');
+    }
+
+    function toggleObstructed(isObstructed) {
+      const container = document.getElementById('inter-inputs-container');
+      if (isObstructed) {
+        container.style.opacity = '0.3';
+        container.style.pointerEvents = 'none';
+      } else {
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+      }
+    }
+
+    function saveInterPoint() {
+      const name = document.getElementById('inter-name').value.trim();
+      const isObstructed = document.getElementById('inter-obstructed').checked;
+
+      if (!name) return alert("Ingresa el nombre del punto/niveleta");
+
+      const session = getCurrentSession();
+
+      if (isObstructed) {
+        session.rows.push({
+          type: 'point',
+          name: name,
+          vplus: null,
+          ainst: null,
+          vminus: 'OBSTRUIDO',
+          cota: 'OBSTRUIDO',
+          baseCota: null,
+          obstructed: true
+        });
+      } else {
+        const vminus = parseFloat(document.getElementById('inter-vminus').value);
+        const baseCota = parseFloat(document.getElementById('inter-base').value) || null;
+
+        if (isNaN(vminus)) return alert("Completa la vista adelante (V-)");
+
+        const currentAinst = getActiveInstrumentHeight();
+        const cota = currentAinst - vminus;
+
+        session.rows.push({
+          type: 'point',
+          name: name,
+          vplus: null,
+          ainst: null,
+          vminus: vminus,
+          cota: cota,
+          baseCota: baseCota,
+          obstructed: false
+        });
+      }
+
+      saveData();
+      closeModals();
+      renderSurveyTable();
+    }
+
+    function openChangeModal() {
+      const currentAinst = getActiveInstrumentHeight();
+      if (!currentAinst) return alert("No hay una estación activa para cerrar el cambio");
+
+      const session = getCurrentSession();
+      const changeCount = session.rows.filter(r => r.type === 'change').length + 1;
+      document.getElementById('change-name').value = `C#${changeCount}`;
+      document.getElementById('change-vminus').value = "";
+      document.getElementById('change-vplus').value = "";
+      document.getElementById('modal-change').classList.add('active');
+    }
+
+    function saveChangePoint() {
+      const name = document.getElementById('change-name').value.trim();
+      const vminus = parseFloat(document.getElementById('change-vminus').value);
+      const vplus = parseFloat(document.getElementById('change-vplus').value);
+
+      if (!name || isNaN(vminus) || isNaN(vplus)) return alert("Completa el nombre, V- y V+");
+
+      const currentAinst = getActiveInstrumentHeight();
+      const cota = currentAinst - vminus;
+      const newAinst = cota + vplus;
+
+      const session = getCurrentSession();
+
+      session.rows.push({
+        type: 'change',
+        name: name,
+        vplus: vplus,
+        ainst: null,
+        vminus: vminus,
+        cota: cota,
+        baseCota: null,
+        obstructed: false
+      });
+
+      session.rows.push({
+        type: 'station',
+        name: 'Δ',
+        vplus: null,
+        ainst: newAinst,
+        vminus: null,
+        cota: null,
+        baseCota: null,
+        obstructed: false
+      });
+
+      saveData();
+      closeModals();
+      renderSurveyTable();
+    }
+
+    function openRebindModal() {
+      const session = getCurrentSession();
+      const availablePoints = session.rows.filter(r => (r.type === 'change' || (r.name && r.name.toLowerCase().includes('arranque'))) && r.cota !== null && !r.obstructed);
+
+      if (availablePoints.length === 0) return alert("Aún no tienes cambios ni puntos fijos registrados en esta sesión");
+
+      const select = document.getElementById('rebind-select');
+      select.innerHTML = "";
+      availablePoints.forEach((p) => {
+        const opt = document.createElement('option');
+        opt.value = p.cota;
+        opt.text = `${p.name} (Cota: ${formatNumber(p.cota)})`;
+        select.appendChild(opt);
+      });
+
+      document.getElementById('rebind-vplus').value = "";
+      document.getElementById('modal-rebind').classList.add('active');
+    }
+
+    function saveRebindPoint() {
+      const select = document.getElementById('rebind-select');
+      const pointName = select.options[select.selectedIndex].text.split(' ')[0];
+      const cota = parseFloat(select.value);
+      const vplus = parseFloat(document.getElementById('rebind-vplus').value);
+
+      if (isNaN(vplus)) return alert("Ingresa la nueva lectura Vista Atrás (V+)");
+
+      const newAinst = cota + vplus;
+      const session = getCurrentSession();
+
+      session.rows.push({ type: 'separator', name: '-', vplus: null, ainst: null, vminus: null, cota: null, baseCota: null, obstructed: false });
+
+      session.rows.push({
+        type: 'rebind',
+        name: pointName,
+        vplus: vplus,
+        ainst: null,
+        vminus: null,
+        cota: cota,
+        baseCota: null,
+        obstructed: false
+      });
+
+      session.rows.push({
+        type: 'station',
+        name: 'Δ',
+        vplus: null,
+        ainst: newAinst,
+        vminus: null,
+        cota: null,
+        baseCota: null,
+        obstructed: false
+      });
+
+      saveData();
+      closeModals();
+      renderSurveyTable();
+    }
+
+    // EXPORTACIÓN A EXCEL (.XLSX)
+    function exportToExcel() {
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      const session = getCurrentSession();
+
+      const wsData = [
+        ["PROYECTO:", proj.name, "", "FECHA:", session.date],
+        ["OBSERVACIONES:", session.desc, "", "", ""],
+        [],
+        ["Δ / Nombre", "V+", "A.inst", "V-", "COTA", "ΔZ (mm)"]
+      ];
+
+      session.rows.forEach(r => {
+        let deltaZ = "";
+        if (!r.obstructed && r.baseCota && r.cota) deltaZ = ((r.cota - r.baseCota) * 1000).toFixed(1);
+
+        let vminusVal = r.obstructed ? "OBSTRUIDO" : (r.vminus !== null ? Number(r.vminus) : "");
+        let cotaVal = r.obstructed ? "OBSTRUIDO" : (r.cota !== null ? Number(r.cota) : "");
+
+        wsData.push([
+          r.name || "",
+          r.vplus !== null ? Number(r.vplus) : "",
+          r.ainst !== null ? Number(r.ainst) : "",
+          vminusVal,
+          cotaVal,
+          deltaZ
+        ]);
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = 4; R <= range.e.r; ++R) {
+        for (let C = 1; C <= 4; ++C) {
+          const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+          if (ws[cellAddress] && typeof ws[cellAddress].v === 'number') {
+            ws[cellAddress].z = '0.000';
+          }
+        }
+      }
+
+      XLSX.utils.book_append_sheet(wb, ws, "Nivelacion");
+      XLSX.writeFile(wb, `Nivelacion_${proj.name}_${session.date}.xlsx`);
+    }
+
+    // EXPORTACIÓN A PDF
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const proj = appData.projects.find(p => p.id === currentProjId);
+      const session = getCurrentSession();
+
+      doc.setFontSize(14);
+      doc.text("REGISTRO DE CONTROL DE ASENTAMIENTOS", 14, 15);
+      doc.setFontSize(10);
+      doc.text(`Proyecto: ${proj.name}`, 14, 22);
+      doc.text(`Fecha: ${session.date} | Ob: ${session.desc}`, 14, 28);
+
+      const tableData = session.rows.map(r => {
+        let deltaZ = "";
+        if (!r.obstructed && r.baseCota && r.cota) deltaZ = `${((r.cota - r.baseCota) * 1000).toFixed(1)} mm`;
+
+        let vminusText = r.obstructed ? "OBSTRUIDO" : formatNumber(r.vminus);
+        let cotaText = r.obstructed ? "OBSTRUIDO" : formatNumber(r.cota);
+
+        return [
+          r.name || "",
+          formatNumber(r.vplus),
+          formatNumber(r.ainst),
+          vminusText,
+          cotaText,
+          deltaZ
+        ];
+      });
+
+      doc.autoTable({
+        head: [['Punto / Δ', 'V+', 'A.inst', 'V-', 'COTA', 'Asentamiento']],
+        body: tableData,
+        startY: 34,
+        theme: 'grid',
+        styles: { fontSize: 8, halign: 'right' },
+        columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
+        didParseCell: function(data) {
+          if (data.row.raw[0] === 'Δ') {
+            data.cell.styles.fillColor = [220, 235, 252];
+            data.cell.styles.fontStyle = 'bold';
+          }
+          if (data.row.raw[3] === 'OBSTRUIDO') {
+            data.cell.styles.textColor = [217, 119, 6];
+          }
+        }
+      });
+
+      doc.save(`Reporte_${proj.name}_${session.date}.pdf`);
+    }
+
+    // ARRANQUE AUTOMÁTICO
+    renderProjects();
+  </script>
+</body>
+</html>
