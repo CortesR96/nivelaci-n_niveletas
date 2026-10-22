@@ -312,7 +312,7 @@
         <table>
           <thead>
             <tr>
-              <th>Δ / Punto</th>
+              <th>Punto / Est.</th>
               <th>V+</th>
               <th>A.inst</th>
               <th>V-</th>
@@ -759,8 +759,36 @@
           vplusDisplay = '<span style="color:var(--warning); font-size:0.75rem;">(Mover trípode)</span>';
         }
 
+        // Nombre e icono de estación o punto
+        let nameDisplay = r.name || "";
+        if (r.type === 'station') {
+          nameDisplay = `
+            <span style="display:inline-flex; align-items:center; gap:5px; color:#38bdf8; font-weight:700;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="vertical-align:middle;">
+                <rect x="6" y="3" width="12" height="4" rx="1" fill="#38bdf8" stroke="#0284c7" stroke-width="1.5" />
+                <rect x="3.5" y="4" width="2.5" height="2" fill="#0284c7" />
+                <line x1="7" y1="8.5" x2="17" y2="8.5" stroke="#f59e0b" stroke-width="2" />
+                <line x1="12" y1="8.5" x2="4" y2="21" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+                <line x1="12" y1="8.5" x2="12" y2="21" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+                <line x1="12" y1="8.5" x2="20" y2="21" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" />
+                <line x1="7.5" y1="15.5" x2="16.5" y2="15.5" stroke="#94a3b8" stroke-width="1.5" stroke-linecap="round" />
+              </svg>
+              <span>Est.</span>
+            </span>
+          `;
+        }
+
+        // Detección automática de cierre de circuito sobre el punto inicial (BM de arranque):
+        const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
+        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
+        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
+
         let diffHtml = "-";
-        if (!r.obstructed && r.baseCota && r.cota) {
+        if (isClosingReading && firstCota !== null) {
+          const errCierre = (r.cota - firstCota) * 1000;
+          const sign = errCierre > 0 ? '+' : '';
+          diffHtml = `<span style="color:#10b981; font-weight:bold; background:#064e3b; padding:2px 8px; border-radius:4px; font-size:0.8rem; border:1px solid #059669;" title="Cierre de circuito de nivelación">Cierre: ${sign}${errCierre.toFixed(1)} mm</span>`;
+        } else if (!r.obstructed && r.baseCota && r.cota) {
           const deltaZ = (r.cota - r.baseCota) * 1000;
           const cls = deltaZ < 0 ? 'val-diff-neg' : (deltaZ > 0 ? 'val-diff-pos' : '');
           diffHtml = `<span class="${cls}">${deltaZ > 0 ? '+' : ''}${deltaZ.toFixed(1)}</span>`;
@@ -777,7 +805,7 @@
         }
 
         tr.innerHTML = `
-          <td>${r.name || ""}</td>
+          <td>${nameDisplay}</td>
           <td>${vplusDisplay}</td>
           <td>${formatNumber(r.ainst)}</td>
           <td>${vminusDisplay}</td>
@@ -1246,15 +1274,29 @@
         ["Δ / Nombre", "V+", "A.inst", "V-", "COTA", "ΔZ (mm)"]
       ];
 
-      session.rows.forEach(r => {
+      const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
+      const startCota = session.rows.length > 0 && session.rows[0].cota !== null ? Number(session.rows[0].cota) : null;
+
+      session.rows.forEach((r, idx) => {
         let deltaZ = "";
-        if (!r.obstructed && r.baseCota && r.cota) deltaZ = ((r.cota - r.baseCota) * 1000).toFixed(1);
+        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
+        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
+
+        if (isClosingReading && startCota !== null) {
+          const errMm = (r.cota - startCota) * 1000;
+          deltaZ = `Cierre: ${errMm > 0 ? '+' : ''}${errMm.toFixed(1)} mm`;
+        } else if (!r.obstructed && r.baseCota && r.cota) {
+          deltaZ = ((r.cota - r.baseCota) * 1000).toFixed(1);
+        }
+
+        let nameCol = r.name || "";
+        if (r.type === 'station') nameCol = "Est.";
 
         let vminusVal = r.obstructed ? "OBSTRUIDO" : (r.vminus !== null ? Number(r.vminus) : "");
         let cotaVal = r.obstructed ? "OBSTRUIDO" : (r.cota !== null ? Number(r.cota) : "");
 
         wsData.push([
-          r.name || "",
+          nameCol,
           r.vplus !== null ? Number(r.vplus) : "",
           r.ainst !== null ? Number(r.ainst) : "",
           vminusVal,
@@ -1293,15 +1335,31 @@
       doc.text(`Proyecto: ${proj.name}`, 14, 22);
       doc.text(`Fecha: ${session.date} | Ob: ${session.desc}`, 14, 28);
 
-      const tableData = session.rows.map(r => {
+      const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
+      const startCota = session.rows.length > 0 && session.rows[0].cota !== null ? Number(session.rows[0].cota) : null;
+
+      const tableData = session.rows.map((r, idx) => {
         let deltaZ = "";
-        if (!r.obstructed && r.baseCota && r.cota) deltaZ = `${((r.cota - r.baseCota) * 1000).toFixed(1)} mm`;
+        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
+        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
+
+        if (isClosingReading && startCota !== null) {
+          const errMm = (r.cota - startCota) * 1000;
+          deltaZ = `Cierre: ${errMm > 0 ? '+' : ''}${errMm.toFixed(1)} mm`;
+        } else if (!r.obstructed && r.baseCota && r.cota) {
+          deltaZ = `${((r.cota - r.baseCota) * 1000).toFixed(1)} mm`;
+        }
+
+        let nameCol = r.name || "";
+        if (r.type === 'station') {
+          nameCol = "      Est.";
+        }
 
         let vminusText = r.obstructed ? "OBSTRUIDO" : formatNumber(r.vminus);
         let cotaText = r.obstructed ? "OBSTRUIDO" : formatNumber(r.cota);
 
         return [
-          r.name || "",
+          nameCol,
           formatNumber(r.vplus),
           formatNumber(r.ainst),
           vminusText,
@@ -1311,19 +1369,53 @@
       });
 
       doc.autoTable({
-        head: [['Punto / Δ', 'V+', 'A.inst', 'V-', 'COTA', 'Asentamiento']],
+        head: [['Punto / Est.', 'V+', 'A.inst', 'V-', 'COTA', 'Asentamiento / Cierre']],
         body: tableData,
         startY: 34,
         theme: 'grid',
         styles: { fontSize: 8, halign: 'right' },
         columnStyles: { 0: { halign: 'left', fontStyle: 'bold' } },
         didParseCell: function(data) {
-          if (data.row.raw[0] === 'Δ') {
-            data.cell.styles.fillColor = [220, 235, 252];
+          const rowVal = data.row.raw[0];
+          if (rowVal && rowVal.includes('Est.')) {
+            data.cell.styles.fillColor = [224, 242, 254];
+            data.cell.styles.textColor = [3, 105, 161];
             data.cell.styles.fontStyle = 'bold';
           }
           if (data.row.raw[3] === 'OBSTRUIDO') {
             data.cell.styles.textColor = [217, 119, 6];
+          }
+          if (data.row.raw[5] && data.row.raw[5].includes('Cierre:')) {
+            if (data.column.index === 5) {
+              data.cell.styles.textColor = [5, 150, 105];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+        didDrawCell: function(data) {
+          if (data.column.index === 0 && data.cell.section === 'body') {
+            const rawVal = data.row.raw[0];
+            if (rawVal && rawVal.includes('Est.')) {
+              const cx = data.cell.x + 3.8;
+              const cy = data.cell.y + (data.cell.height / 2);
+
+              doc.setFillColor(2, 132, 199);
+              doc.roundedRect(cx - 1.8, cy - 2.8, 3.8, 1.4, 0.3, 0.3, 'F');
+              doc.setFillColor(15, 23, 42);
+              doc.rect(cx - 2.4, cy - 2.4, 0.6, 0.7, 'F');
+
+              doc.setDrawColor(217, 119, 6);
+              doc.setLineWidth(0.35);
+              doc.line(cx - 1.8, cy - 1.2, cx + 1.8, cy - 1.2);
+
+              doc.line(cx, cy - 1.2, cx - 2.3, cy + 2.8);
+              doc.line(cx, cy - 1.2, cx, cy + 2.8);
+              doc.line(cx, cy - 1.2, cx + 2.3, cy + 2.8);
+
+              doc.setDrawColor(148, 163, 184);
+              doc.setLineWidth(0.25);
+              doc.line(cx - 1.2, cy + 1.0, cx + 1.2, cy + 1.0);
+            }
           }
         }
       });
