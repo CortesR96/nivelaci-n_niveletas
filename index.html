@@ -399,8 +399,9 @@
         Toma la lectura de cierre sobre el punto de cambio. Congelará la cota para que puedas mover el trípode.
       </p>
       <div class="form-group">
-        <label>Nombre del Cambio</label>
-        <input type="text" id="change-name" placeholder="Ej: C#1, C#2">
+        <label>Nombre del Cambio (o selecciona uno existente si vas de regreso)</label>
+        <input type="text" id="change-name" list="change-name-list" placeholder="Ej: C#1, C#2">
+        <datalist id="change-name-list"></datalist>
       </div>
       <div class="form-group">
         <label>Vista Adelante (V-) [Sobre el cambio]</label>
@@ -795,7 +796,13 @@
         }
 
         let actionsHtml = "";
-        if (r.type !== 'separator') {
+        if (r.type === 'separator') {
+          actionsHtml = `
+            <div class="actions-cell">
+              <button class="btn-action delete" onclick="deleteRow(${idx})" title="Eliminar espacio en blanco">🗑️</button>
+            </div>
+          `;
+        } else {
           actionsHtml = `
             <div class="actions-cell">
               <button class="btn-action edit" onclick="openEditModal(${idx})" title="Modificar">✏️</button>
@@ -848,23 +855,35 @@
       const r = session.rows[idx];
       if (!r) return;
 
+      if (r.type === 'separator') {
+        if (!confirm("¿Deseas eliminar este espacio en blanco?")) return;
+        session.rows.splice(idx, 1);
+        saveData();
+        renderSurveyTable();
+        return;
+      }
+
       let msg = `¿Deseas eliminar el registro "${r.name || 'Fila'}"?`;
       const nextRow = session.rows[idx + 1];
       let deleteNextStation = false;
 
       if (nextRow && nextRow.type === 'station' && (r.type === 'change' || r.type === 'point' || r.type === 'rebind') && r.vplus) {
-        msg += `\n(También se retirará la estación Δ asociada).`;
+        msg += `\n(También se retirará la estación asociada).`;
         deleteNextStation = true;
       }
 
       if (!confirm(msg)) return;
 
-      if (deleteNextStation) {
-        session.rows.splice(idx, 2);
-      } else {
-        session.rows.splice(idx, 1);
+      let delStart = idx;
+      let delCount = deleteNextStation ? 2 : 1;
+
+      // Si tiene una fila de separación inmediatamente anterior, limpiarla también
+      if (idx > 0 && session.rows[idx - 1] && session.rows[idx - 1].type === 'separator') {
+        delStart = idx - 1;
+        delCount += 1;
       }
 
+      session.rows.splice(delStart, delCount);
       saveData();
       renderSurveyTable();
     }
@@ -989,8 +1008,34 @@
       if (!currentAinst) return alert("No hay una estación activa para cerrar el cambio.");
 
       const session = getCurrentSession();
-      const changeCount = session.rows.filter(r => r.type === 'change').length + 1;
-      document.getElementById('change-name').value = `C#${changeCount}`;
+
+      // Buscar el número más alto existente en nombres tipo C#N o Cambio N o C N
+      let maxChangeNum = 0;
+      const existingChangeNames = new Set();
+      session.rows.forEach(r => {
+        if (r.name && r.name !== 'Est.' && r.name !== '-') {
+          const match = r.name.match(/c(?:ambio)?\s*#?\s*(\d+)/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > maxChangeNum) maxChangeNum = num;
+            existingChangeNames.add(r.name.trim());
+          }
+        }
+      });
+      const nextNum = maxChangeNum > 0 ? (maxChangeNum + 1) : 1;
+
+      // Llenar datalist con cambios previos por si va de regreso
+      const datalist = document.getElementById('change-name-list');
+      if (datalist) {
+        datalist.innerHTML = "";
+        existingChangeNames.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          datalist.appendChild(opt);
+        });
+      }
+
+      document.getElementById('change-name').value = `C#${nextNum}`;
       document.getElementById('change-vminus').value = "";
       document.getElementById('modal-change').classList.add('active');
     }
@@ -1085,7 +1130,20 @@
       if (isPending && !isNaN(rowIdx) && session.rows[rowIdx]) {
         session.rows[rowIdx].vplus = vplus;
       } else {
-        session.rows.push({ type: 'separator', name: '-', vplus: null, ainst: null, vminus: null, cota: null, baseCota: null, obstructed: false });
+        // Asegurar una fila de separación visual para distinguir la nueva armada sobre el cambio
+        const lastRow = session.rows[session.rows.length - 1];
+        if (!lastRow || lastRow.type !== 'separator') {
+          session.rows.push({
+            type: 'separator',
+            name: '-',
+            vplus: null,
+            ainst: null,
+            vminus: null,
+            cota: null,
+            baseCota: null,
+            obstructed: false
+          });
+        }
         session.rows.push({
           type: 'rebind',
           name: pointName,
