@@ -38,11 +38,13 @@
       overscroll-behavior: none;
     }
 
-    /* Modo de pantalla fija en campo (inmovilización de controles) */
+    /* Modo de pantalla fija en campo (inmovilización de controles con ajuste estricto a pantalla) */
     body.field-mode {
       padding-bottom: 0;
       height: 100vh;
       height: 100dvh;
+      width: 100vw;
+      max-width: 100vw;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -50,21 +52,31 @@
 
     body.field-mode header {
       flex-shrink: 0;
+      width: 100%;
+      max-width: 100vw;
     }
 
     body.field-mode .container {
       flex: 1;
       min-height: 0;
-      padding: 10px 14px;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 8px 10px;
       display: flex;
       flex-direction: column;
       height: 100%;
       overflow: hidden;
+      box-sizing: border-box;
     }
 
     body.field-mode #view-field {
       flex: 1;
       min-height: 0;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
       display: flex;
       flex-direction: column;
       height: 100%;
@@ -150,31 +162,51 @@
 
     .field-controls-sticky {
       flex-shrink: 0;
-      margin-bottom: 8px;
+      width: 100%;
+      max-width: 100%;
+      margin-bottom: 6px;
     }
 
     .grid-actions {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-bottom: 14px;
+      gap: 8px;
+      margin-bottom: 6px;
+      width: 100%;
+      max-width: 100%;
     }
 
-    /* Tabla con scroll independiente */
+    .grid-actions .btn {
+      padding: 10px 8px;
+      font-size: 0.82rem;
+    }
+
+    /* Tabla con scroll vertical y horizontal independiente y estrictamente acotada */
     .table-container {
       flex: 1;
       min-height: 0;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
       overflow-x: auto;
       overflow-y: auto;
       border-radius: 8px;
       border: 1px solid var(--card-border);
       background: #0b1120;
       -webkit-overflow-scrolling: touch;
+      touch-action: pan-x pan-y;
+      overscroll-behavior: contain;
     }
 
-    table { width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem; }
+    table {
+      min-width: 580px;
+      width: 100%;
+      border-collapse: collapse;
+      text-align: right;
+      font-size: 0.88rem;
+    }
     
-    /* Encabezados fijos al hacer scroll */
+    /* Encabezados fijos al hacer scroll vertical */
     th {
       position: sticky;
       top: 0;

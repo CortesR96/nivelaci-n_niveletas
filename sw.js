@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nivelacion-cr-v6';
+const CACHE_NAME = 'nivelacion-cr-v7';
 const CORE_ASSETS = [
   './',
   './index.html',
