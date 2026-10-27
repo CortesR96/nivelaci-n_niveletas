@@ -7,9 +7,8 @@
   <link rel="icon" type="image/png" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#131c2e">
-  
-  
   <title>Nivelacion CR - Control de Asentamiento</title>
+  
   <!-- SheetJS para Excel y jsPDF para reportes PDF -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -30,12 +29,46 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    
     html, body {
       background-color: var(--bg);
       color: var(--text-main);
       padding-bottom: 70px;
-      overscroll-behavior-y: none; /* Desactiva el gesto de deslizar para recargar (pull-to-refresh) */
+      overscroll-behavior-y: none;
       overscroll-behavior: none;
+    }
+
+    /* Modo de pantalla fija en campo (inmovilización de controles) */
+    body.field-mode {
+      padding-bottom: 0;
+      height: 100vh;
+      height: 100dvh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    body.field-mode header {
+      flex-shrink: 0;
+    }
+
+    body.field-mode .container {
+      flex: 1;
+      min-height: 0;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body.field-mode #view-field {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
     }
 
     header {
@@ -115,6 +148,11 @@
     }
     input:focus, select:focus { outline: none; border-color: var(--accent); }
 
+    .field-controls-sticky {
+      flex-shrink: 0;
+      margin-bottom: 8px;
+    }
+
     .grid-actions {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -122,20 +160,32 @@
       margin-bottom: 14px;
     }
 
+    /* Tabla con scroll independiente */
     .table-container {
+      flex: 1;
+      min-height: 0;
       overflow-x: auto;
+      overflow-y: auto;
       border-radius: 8px;
       border: 1px solid var(--card-border);
       background: #0b1120;
+      -webkit-overflow-scrolling: touch;
     }
+
     table { width: 100%; border-collapse: collapse; text-align: right; font-size: 0.88rem; }
+    
+    /* Encabezados fijos al hacer scroll */
     th {
+      position: sticky;
+      top: 0;
+      z-index: 20;
       background: #1e293b;
       color: #38bdf8;
       padding: 10px 8px;
       font-weight: 700;
-      border-bottom: 1px solid #334155;
+      border-bottom: 2px solid #334155;
       white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
     }
     th:first-child, td:first-child { text-align: left; }
     td {
@@ -166,17 +216,9 @@
       background: #1e293b;
       color: #f8fafc;
     }
-    .btn-action:hover {
-      background: #334155;
-    }
-    .btn-action.delete:hover {
-      background: var(--danger);
-      border-color: var(--danger);
-    }
-    .btn-action.edit:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-    }
+    .btn-action:hover { background: #334155; }
+    .btn-action.delete:hover { background: var(--danger); border-color: var(--danger); }
+    .btn-action.edit:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
     .modal {
       display: none;
@@ -200,8 +242,6 @@
       overflow-y: auto;
     }
     .modal-title { font-size: 1.1rem; color: var(--accent); margin-bottom: 14px; font-weight: bold; }
-
-
   </style>
 </head>
 <body>
@@ -218,7 +258,6 @@
 
     <!-- VISTA 1: LISTADO DE PROYECTOS -->
     <div id="view-projects" class="view active">
-      
       
       <!-- BANNER DE INSTALACIÓN RÁPIDA -->
       <div id="pwa-install-banner" class="card" style="display:none; border-color:var(--accent); background:#1e293b;">
@@ -288,23 +327,27 @@
 
     <!-- VISTA 3: CARTERA DE NIVELACIÓN EN CAMPO -->
     <div id="view-field" class="view">
-      <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-        <button class="btn btn-outline" onclick="goToSessions()">← Salir a Jornadas</button>
-        <div style="display:flex; gap:6px;">
-          <button class="btn btn-success" onclick="exportToExcel()">📊 Excel</button>
-          <button class="btn btn-primary" onclick="exportToPDF()">📑 PDF</button>
+      
+      <!-- CONTROLES INMOVILIZADOS EN LA PARTE SUPERIOR -->
+      <div class="field-controls-sticky">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+          <button class="btn btn-outline" onclick="goToSessions()">← Salir a Jornadas</button>
+          <div style="display:flex; gap:6px;">
+            <button class="btn btn-success" onclick="exportToExcel()">📊 Excel</button>
+            <button class="btn btn-primary" onclick="exportToPDF()">📑 PDF</button>
+          </div>
+        </div>
+
+        <!-- BOTONES DE ACCIÓN RÁPIDA -->
+        <div class="grid-actions" style="margin-bottom:0;">
+          <button class="btn btn-primary" onclick="openStartModal()">🟢 1. Arranque / BM</button>
+          <button class="btn btn-success" onclick="openInterModal()">🔵 2. Intermedia</button>
+          <button class="btn btn-warning" onclick="openChangeModal()">🟠 3. Cerrar Cambio (V-)</button>
+          <button class="btn btn-purple" onclick="openRebindModal()">🟣 4. Pegarse / Armar (V+)</button>
         </div>
       </div>
 
-      <!-- BOTONES DE ACCIÓN RÁPIDA -->
-      <div class="grid-actions">
-        <button class="btn btn-primary" onclick="openStartModal()">🟢 1. Arranque / BM</button>
-        <button class="btn btn-success" onclick="openInterModal()">🔵 2. Intermedia</button>
-        <button class="btn btn-warning" onclick="openChangeModal()">🟠 3. Cerrar Cambio (V-)</button>
-        <button class="btn btn-purple" onclick="openRebindModal()">🟣 4. Pegarse / Armar (V+)</button>
-      </div>
-
-      <!-- TABLA DE CARTERA -->
+      <!-- TABLA DE CARTERA (CON SCROLL INTERNO Y ENCABEZADOS FIJOS) -->
       <div class="table-container">
         <table>
           <thead>
@@ -323,7 +366,6 @@
           </tbody>
         </table>
       </div>
-
 
     </div>
 
@@ -359,7 +401,6 @@
         <input type="text" id="inter-name" placeholder="Ej: 1B, 2A, 1'C, etc.">
       </div>
 
-      <!-- CHECKBOX DE OBSTRUCCIÓN -->
       <div style="margin: 12px 0; display: flex; align-items: center; gap: 8px;">
         <input type="checkbox" id="inter-obstructed" style="width: auto;" onchange="toggleObstructed(this.checked)">
         <label for="inter-obstructed" style="margin: 0; color: #f59e0b; cursor: pointer;">
@@ -485,6 +526,11 @@
     function showView(viewId) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.getElementById(viewId).classList.add('active');
+      if (viewId === 'view-field') {
+        document.body.classList.add('field-mode');
+      } else {
+        document.body.classList.remove('field-mode');
+      }
     }
 
     function saveNavState(view, projId, sessId) {
@@ -668,20 +714,33 @@
       if (!session || !session.rows) return;
 
       let currentAinst = null;
-      const knownCotas = {};
+      const latestKnownCotas = {};
+      const firstKnownCotas = {};
+      const firstOccurrenceIdx = {};
+
+      const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
 
       session.rows.forEach((r, idx) => {
+        const nameKey = r.name && r.name !== 'Est.' && r.name !== '-' ? r.name.trim().toLowerCase() : "";
+
+        // Punto de Arranque
         if (r.type === 'point' && r.vplus !== null && r.vplus !== undefined && (r.vminus === null || r.vminus === undefined)) {
           if (r.cota !== null && !isNaN(r.cota)) {
-            knownCotas[r.name] = Number(r.cota);
+            latestKnownCotas[nameKey] = Number(r.cota);
+            if (!(nameKey in firstKnownCotas)) {
+              firstKnownCotas[nameKey] = Number(r.cota);
+              firstOccurrenceIdx[nameKey] = idx;
+            }
           }
         }
+        // Fila de Estación (trípode)
         else if (r.type === 'station') {
           const prev = session.rows[idx - 1];
           if (prev && prev.vplus !== null && prev.vplus !== undefined && !isNaN(prev.vplus)) {
             let baseCota = prev.cota;
             if (baseCota === null || isNaN(baseCota)) {
-              baseCota = knownCotas[prev.name];
+              const prevKey = prev.name ? prev.name.trim().toLowerCase() : "";
+              baseCota = latestKnownCotas[prevKey];
             }
             if (baseCota !== null && baseCota !== undefined && !isNaN(baseCota)) {
               r.ainst = Number(baseCota) + Number(prev.vplus);
@@ -689,29 +748,55 @@
             }
           }
         }
+        // Punto Intermedio
         else if (r.type === 'point' && (r.vminus !== null || r.obstructed)) {
           if (r.obstructed) {
             r.vminus = 'OBSTRUIDO';
             r.cota = 'OBSTRUIDO';
           } else if (currentAinst !== null && r.vminus !== null && !isNaN(r.vminus)) {
             r.cota = currentAinst - Number(r.vminus);
-            knownCotas[r.name] = r.cota;
+            if (!(nameKey in firstKnownCotas)) {
+              firstKnownCotas[nameKey] = Number(r.cota);
+              firstOccurrenceIdx[nameKey] = idx;
+            }
+            latestKnownCotas[nameKey] = r.cota;
           }
         }
+        // Punto de Cambio
         else if (r.type === 'change') {
           if (currentAinst !== null && r.vminus !== null && !isNaN(r.vminus)) {
             r.cota = currentAinst - Number(r.vminus);
           }
           if (r.cota !== null && !isNaN(r.cota)) {
-            knownCotas[r.name] = Number(r.cota);
+            if (!(nameKey in firstKnownCotas)) {
+              firstKnownCotas[nameKey] = Number(r.cota);
+              firstOccurrenceIdx[nameKey] = idx;
+            }
+            latestKnownCotas[nameKey] = Number(r.cota);
           }
           if (r.vplus === null || r.vplus === undefined) {
             currentAinst = null;
           }
         }
+        // Amarre a cambio existente
         else if (r.type === 'rebind') {
-          if (knownCotas[r.name] !== undefined) {
-            r.cota = knownCotas[r.name];
+          if (latestKnownCotas[nameKey] !== undefined) {
+            r.cota = latestKnownCotas[nameKey];
+          }
+        }
+
+        // Cálculo de diferencia o cierre contra la primera cota registrada
+        r.diffAgainstFirst = null;
+        r.isCircuitClosure = false;
+        r.isPointCheck = false;
+
+        if (nameKey && (nameKey in firstKnownCotas) && firstOccurrenceIdx[nameKey] < idx && r.cota !== null && !isNaN(r.cota) && !r.obstructed && r.vminus !== null) {
+          const originalCota = firstKnownCotas[nameKey];
+          r.diffAgainstFirst = (Number(r.cota) - Number(originalCota)) * 1000;
+          if (nameKey === startPointName) {
+            r.isCircuitClosure = true;
+          } else {
+            r.isPointCheck = true;
           }
         }
       });
@@ -726,10 +811,6 @@
 
       let activeInst = null;
       let isPendingVplus = false;
-      let sumVplus = 0;
-      let sumVminus = 0;
-      let firstCota = null;
-      let lastCota = null;
 
       session.rows.forEach((r, idx) => {
         if (r.type === 'station') {
@@ -738,14 +819,6 @@
         } else if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
           activeInst = null;
           isPendingVplus = true;
-        }
-
-        if (r.vplus !== null && r.vplus !== undefined && !isNaN(r.vplus)) sumVplus += Number(r.vplus);
-        if (r.vminus !== null && r.vminus !== undefined && !isNaN(r.vminus) && !r.obstructed) sumVminus += Number(r.vminus);
-
-        if (r.cota !== null && r.cota !== undefined && !isNaN(r.cota) && !r.obstructed) {
-          if (firstCota === null) firstCota = Number(r.cota);
-          lastCota = Number(r.cota);
         }
 
         const tr = document.createElement('tr');
@@ -761,7 +834,6 @@
           vplusDisplay = '<span style="color:var(--warning); font-size:0.75rem;">(Mover trípode)</span>';
         }
 
-        // Nombre e icono de estación o punto
         let nameDisplay = r.name || "";
         if (r.type === 'station') {
           nameDisplay = `
@@ -780,16 +852,17 @@
           `;
         }
 
-        // Detección automática de cierre de circuito sobre el punto inicial (BM de arranque):
-        const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
-        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
-        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
-
         let diffHtml = "-";
-        if (isClosingReading && firstCota !== null) {
-          const errCierre = (r.cota - firstCota) * 1000;
-          const sign = errCierre > 0 ? '+' : '';
-          diffHtml = `<span style="color:#10b981; font-weight:bold; background:#064e3b; padding:2px 8px; border-radius:4px; font-size:0.8rem; border:1px solid #059669;" title="Cierre de circuito de nivelación">Cierre: ${sign}${errCierre.toFixed(1)} mm</span>`;
+        if (r.diffAgainstFirst !== null && r.diffAgainstFirst !== undefined) {
+          const sign = r.diffAgainstFirst > 0 ? '+' : '';
+          const valText = `${sign}${r.diffAgainstFirst.toFixed(1)} mm`;
+          if (r.isCircuitClosure) {
+            diffHtml = `<span style="color:#10b981; font-weight:bold; background:#064e3b; padding:2px 8px; border-radius:4px; font-size:0.8rem; border:1px solid #059669;" title="Cierre de circuito">Cierre: ${valText}</span>`;
+          } else {
+            const clsBadge = Math.abs(r.diffAgainstFirst) <= 3 ? '#0284c7' : '#d97706';
+            const bgBadge = Math.abs(r.diffAgainstFirst) <= 3 ? '#0c2a4a' : '#451a03';
+            diffHtml = `<span style="color:#38bdf8; font-weight:bold; background:${bgBadge}; padding:2px 8px; border-radius:4px; font-size:0.8rem; border:1px solid ${clsBadge};" title="Diferencia contra cota original">Dif: ${valText}</span>`;
+          }
         } else if (!r.obstructed && r.baseCota && r.cota) {
           const deltaZ = (r.cota - r.baseCota) * 1000;
           const cls = deltaZ < 0 ? 'val-diff-neg' : (deltaZ > 0 ? 'val-diff-pos' : '');
@@ -825,8 +898,13 @@
       });
 
       updateBadge(activeInst, isPendingVplus);
+    }
 
-
+    function scrollToBottomTable() {
+      setTimeout(() => {
+        const tbl = document.querySelector('.table-container');
+        if (tbl) tbl.scrollTop = tbl.scrollHeight;
+      }, 50);
     }
 
     function getActiveInstrumentHeight() {
@@ -861,7 +939,8 @@
       let deleteNextStation = false;
 
       if (nextRow && nextRow.type === 'station' && (r.type === 'change' || r.type === 'point' || r.type === 'rebind') && r.vplus) {
-        msg += `\n(También se retirará la estación asociada).`;
+        msg += `
+(También se retirará la estación asociada).`;
         deleteNextStation = true;
       }
 
@@ -870,7 +949,6 @@
       let delStart = idx;
       let delCount = deleteNextStation ? 2 : 1;
 
-      // Si tiene una fila de separación inmediatamente anterior, limpiarla también
       if (idx > 0 && session.rows[idx - 1] && session.rows[idx - 1].type === 'separator') {
         delStart = idx - 1;
         delCount += 1;
@@ -926,6 +1004,7 @@
       saveData();
       closeModals();
       renderSurveyTable();
+      scrollToBottomTable();
     }
 
     function openInterModal() {
@@ -994,6 +1073,7 @@
       saveData();
       closeModals();
       renderSurveyTable();
+      scrollToBottomTable();
     }
 
     function openChangeModal() {
@@ -1002,7 +1082,6 @@
 
       const session = getCurrentSession();
 
-      // Buscar el número más alto existente en nombres tipo C#N o Cambio N o C N
       let maxChangeNum = 0;
       const existingChangeNames = new Set();
       session.rows.forEach(r => {
@@ -1017,7 +1096,6 @@
       });
       const nextNum = maxChangeNum > 0 ? (maxChangeNum + 1) : 1;
 
-      // Llenar datalist con cambios previos por si va de regreso
       const datalist = document.getElementById('change-name-list');
       if (datalist) {
         datalist.innerHTML = "";
@@ -1058,6 +1136,7 @@
       saveData();
       closeModals();
       renderSurveyTable();
+      scrollToBottomTable();
     }
 
     function openRebindModal() {
@@ -1123,7 +1202,6 @@
       if (isPending && !isNaN(rowIdx) && session.rows[rowIdx]) {
         session.rows[rowIdx].vplus = vplus;
       } else {
-        // Asegurar una fila de separación visual para distinguir la nueva armada sobre el cambio
         const lastRow = session.rows[session.rows.length - 1];
         if (!lastRow || lastRow.type !== 'separator') {
           session.rows.push({
@@ -1163,6 +1241,7 @@
       saveData();
       closeModals();
       renderSurveyTable();
+      scrollToBottomTable();
     }
 
     function openEditModal(idx) {
@@ -1292,8 +1371,11 @@
           const countProj = imported.projects.length;
           const countSess = imported.projects.reduce((acc, p) => acc + (p.sessions ? p.sessions.length : 0), 0);
 
-          const confirmMsg = `Se encontraron ${countProj} proyecto(s) y ${countSess} jornada(s) en este archivo de respaldo.\n\n` +
-                             `⚠️ ATENCIÓN: Esta acción reemplazará la base de datos actual del dispositivo con la del archivo.\n` +
+          const confirmMsg = `Se encontraron ${countProj} proyecto(s) y ${countSess} jornada(s) en este archivo de respaldo.
+
+` +
+                             `⚠️ ATENCIÓN: Esta acción reemplazará la base de datos actual del dispositivo con la del archivo.
+` +
                              `¿Deseas continuar y cargar todos los proyectos?`;
           if (!confirm(confirmMsg)) {
             event.target.value = "";
@@ -1322,20 +1404,15 @@
         ["PROYECTO:", proj.name, "", "FECHA:", session.date],
         ["OBSERVACIONES:", session.desc, "", "", ""],
         [],
-        ["Δ / Nombre", "V+", "A.inst", "V-", "COTA", "ΔZ (mm)"]
+        ["Punto / Est.", "V+", "A.inst", "V-", "COTA", "ΔZ (mm)"]
       ];
-
-      const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
-      const startCota = session.rows.length > 0 && session.rows[0].cota !== null ? Number(session.rows[0].cota) : null;
 
       session.rows.forEach((r, idx) => {
         let deltaZ = "";
-        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
-        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
-
-        if (isClosingReading && startCota !== null) {
-          const errMm = (r.cota - startCota) * 1000;
-          deltaZ = `Cierre: ${errMm > 0 ? '+' : ''}${errMm.toFixed(1)} mm`;
+        if (r.diffAgainstFirst !== null && r.diffAgainstFirst !== undefined) {
+          const sign = r.diffAgainstFirst > 0 ? '+' : '';
+          const prefix = r.isCircuitClosure ? 'Cierre' : 'Dif';
+          deltaZ = `${prefix}: ${sign}${r.diffAgainstFirst.toFixed(1)} mm`;
         } else if (!r.obstructed && r.baseCota && r.cota) {
           deltaZ = ((r.cota - r.baseCota) * 1000).toFixed(1);
         }
@@ -1386,17 +1463,12 @@
       doc.text(`Proyecto: ${proj.name}`, 14, 22);
       doc.text(`Fecha: ${session.date} | Ob: ${session.desc}`, 14, 28);
 
-      const startPointName = session.rows.length > 0 && session.rows[0].name ? session.rows[0].name.trim().toLowerCase() : "";
-      const startCota = session.rows.length > 0 && session.rows[0].cota !== null ? Number(session.rows[0].cota) : null;
-
       const tableData = session.rows.map((r, idx) => {
         let deltaZ = "";
-        const isStartName = r.name && startPointName && r.name.trim().toLowerCase() === startPointName;
-        const isClosingReading = idx > 0 && isStartName && r.cota !== null && !r.obstructed && r.vminus !== null;
-
-        if (isClosingReading && startCota !== null) {
-          const errMm = (r.cota - startCota) * 1000;
-          deltaZ = `Cierre: ${errMm > 0 ? '+' : ''}${errMm.toFixed(1)} mm`;
+        if (r.diffAgainstFirst !== null && r.diffAgainstFirst !== undefined) {
+          const sign = r.diffAgainstFirst > 0 ? '+' : '';
+          const prefix = r.isCircuitClosure ? 'Cierre' : 'Dif';
+          deltaZ = `${prefix}: ${sign}${r.diffAgainstFirst.toFixed(1)} mm`;
         } else if (!r.obstructed && r.baseCota && r.cota) {
           deltaZ = `${((r.cota - r.baseCota) * 1000).toFixed(1)} mm`;
         }
@@ -1436,7 +1508,7 @@
           if (data.row.raw[3] === 'OBSTRUIDO') {
             data.cell.styles.textColor = [217, 119, 6];
           }
-          if (data.row.raw[5] && data.row.raw[5].includes('Cierre:')) {
+          if (data.row.raw[5] && (data.row.raw[5].includes('Cierre:') || data.row.raw[5].includes('Dif:'))) {
             if (data.column.index === 5) {
               data.cell.styles.textColor = [5, 150, 105];
               data.cell.styles.fontStyle = 'bold';
@@ -1474,8 +1546,6 @@
       doc.save(`Reporte_${proj.name}_${session.date}.pdf`);
     }
 
-    
-    
     // MANEJO DE INSTALACIÓN PWA
     let deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', (e) => {
