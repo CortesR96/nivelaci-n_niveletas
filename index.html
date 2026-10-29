@@ -461,7 +461,7 @@
     <div class="modal-content">
       <div class="modal-title">Cerrar Cambio de Estación (V-)</div>
       <p style="color:var(--text-muted); font-size:0.82rem; margin-bottom:12px;">
-        Toma la lectura de cierre sobre el punto de cambio. Congelará la cota para que puedas mover el trípode.
+        Toma la lectura de cierre sobre el punto de cambio. Congelará la cota para que puedas mover el trípode cuando termines esta posición.
       </p>
       <div class="form-group">
         <label>Nombre del Cambio (o selecciona uno existente si vas de regreso)</label>
@@ -472,7 +472,7 @@
         <label>Vista Adelante (V-) [Sobre el cambio]</label>
         <input type="number" step="0.001" id="change-vminus" placeholder="Ej: 1.525">
       </div>
-      <button class="btn btn-warning btn-block" onclick="saveChangePoint()">Calcular Cota y Cerrar Estación</button>
+      <button class="btn btn-warning btn-block" onclick="saveChangePoint()">Calcular Cota del Cambio</button>
       <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="closeModals()">Cancelar</button>
     </div>
   </div>
@@ -780,7 +780,7 @@
             }
           }
         }
-        // Punto Intermedio
+        // Punto Intermedio (calcula con la altura instrumental activa)
         else if (r.type === 'point' && (r.vminus !== null || r.obstructed)) {
           if (r.obstructed) {
             r.vminus = 'OBSTRUIDO';
@@ -794,7 +794,7 @@
             latestKnownCotas[nameKey] = r.cota;
           }
         }
-        // Punto de Cambio
+        // Punto de Cambio (calcula su cota con la altura instrumental activa, pero NO mata la estación)
         else if (r.type === 'change') {
           if (currentAinst !== null && r.vminus !== null && !isNaN(r.vminus)) {
             r.cota = currentAinst - Number(r.vminus);
@@ -806,9 +806,7 @@
             }
             latestKnownCotas[nameKey] = Number(r.cota);
           }
-          if (r.vplus === null || r.vplus === undefined) {
-            currentAinst = null;
-          }
+          // La estación se mantiene activa para que el usuario pueda seguir midiendo intermedias
         }
         // Amarre a cambio existente
         else if (r.type === 'rebind') {
@@ -842,15 +840,10 @@
       tbody.innerHTML = "";
 
       let activeInst = null;
-      let isPendingVplus = false;
 
       session.rows.forEach((r, idx) => {
         if (r.type === 'station') {
           activeInst = r.ainst;
-          isPendingVplus = false;
-        } else if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
-          activeInst = null;
-          isPendingVplus = true;
         }
 
         const tr = document.createElement('tr');
@@ -860,11 +853,7 @@
 
         let vminusDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">OBSTRUIDO</span>' : formatNumber(r.vminus);
         let cotaDisplay = r.obstructed ? '<span style="color:#f59e0b; font-weight:bold;">--</span>' : formatNumber(r.cota);
-
         let vplusDisplay = formatNumber(r.vplus);
-        if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
-          vplusDisplay = '<span style="color:var(--warning); font-size:0.75rem;">(Mover trípode)</span>';
-        }
 
         let nameDisplay = r.name || "";
         if (r.type === 'station') {
@@ -929,7 +918,7 @@
         tbody.appendChild(tr);
       });
 
-      updateBadge(activeInst, isPendingVplus);
+      updateBadge(activeInst, false);
     }
 
     function scrollToBottomTable() {
@@ -946,8 +935,6 @@
         const r = session.rows[i];
         if (r.type === 'station' && r.ainst) {
           current = Number(r.ainst);
-        } else if (r.type === 'change' && (r.vplus === null || r.vplus === undefined)) {
-          current = null;
         }
       }
       return current;
@@ -971,8 +958,7 @@
       let deleteNextStation = false;
 
       if (nextRow && nextRow.type === 'station' && (r.type === 'change' || r.type === 'point' || r.type === 'rebind') && r.vplus) {
-        msg += `
-(También se retirará la estación asociada).`;
+        msg += `\n(También se retirará la estación asociada).`;
         deleteNextStation = true;
       }
 
@@ -1198,6 +1184,22 @@
       const lastRow = session.rows[session.rows.length - 1];
       const isPendingChange = lastRow && lastRow.type === 'change' && (lastRow.vplus === null || lastRow.vplus === undefined);
 
+      // Buscar el punto de cambio más reciente en la sesión para preseleccionarlo automáticamente
+      let defaultSelectedName = null;
+      if (isPendingChange) {
+        defaultSelectedName = lastRow.name;
+      } else {
+        for (let i = session.rows.length - 1; i >= 0; i--) {
+          const r = session.rows[i];
+          if (r.type === 'change' || r.type === 'rebind' || (r.name && (r.name.toLowerCase().includes('c#') || r.name.toLowerCase().includes('cambio')))) {
+            if (r.cota !== null && !isNaN(r.cota)) {
+              defaultSelectedName = r.name;
+              break;
+            }
+          }
+        }
+      }
+
       pointsMap.forEach((p) => {
         const opt = document.createElement('option');
         opt.value = p.cota;
@@ -1209,7 +1211,14 @@
         select.appendChild(opt);
       });
 
-      if (isPendingChange) {
+      if (defaultSelectedName) {
+        for (let i = 0; i < select.options.length; i++) {
+          if (select.options[i].dataset.name === defaultSelectedName) {
+            select.selectedIndex = i;
+            break;
+          }
+        }
+      } else if (isPendingChange) {
         select.value = lastRow.cota;
       }
 
@@ -1403,11 +1412,8 @@
           const countProj = imported.projects.length;
           const countSess = imported.projects.reduce((acc, p) => acc + (p.sessions ? p.sessions.length : 0), 0);
 
-          const confirmMsg = `Se encontraron ${countProj} proyecto(s) y ${countSess} jornada(s) en este archivo de respaldo.
-
-` +
-                             `⚠️ ATENCIÓN: Esta acción reemplazará la base de datos actual del dispositivo con la del archivo.
-` +
+          const confirmMsg = `Se encontraron ${countProj} proyecto(s) y ${countSess} jornada(s) en este archivo de respaldo.\n\n` +
+                             `⚠️ ATENCIÓN: Esta acción reemplazará la base de datos actual del dispositivo con la del archivo.\n` +
                              `¿Deseas continuar y cargar todos los proyectos?`;
           if (!confirm(confirmMsg)) {
             event.target.value = "";
